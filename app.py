@@ -88,23 +88,30 @@ hr { margin: 12px 0 !important; opacity: .25; }
 #  Session state 初始化
 # ════════════════════════════════════════════════════════
 
+_ALL_KEY_VARS = (
+    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY",
+    "MARKETAUX_API_KEY", "FINNHUB_KEY", "FMP_KEY", "ALPHA_VANTAGE_KEY",
+)
+
 def _init_state():
     defaults = {
         "market_data":    None,
         "assessment":     None,
-        "market_analysis": None,   # 市場情緒儀表板 + 風險指標
+        "market_analysis": None,
         "last_run":       None,
         "running":        False,
         "run_step":       "",
-        "selected_stock": None,   # {"symbol": str, "name": str}，None = 無選取
+        "selected_stock": None,
         "selected_models":     ["claude-sonnet-4-6"],
         "custom_prompt":       "",
         "multi_reports":       {},
         "stock_multi_reports": {},
-        # 多使用者：每個 session 各自持有金鑰，不互相干擾
-        "session_keys":        {},
-        # 首次使用導引：已完成 → True，不再彈窗
-        "setup_done":          False,
+        # ── API 金鑰：Session 建立時從 os.environ（本機 .env）預載；
+        #    雲端 os.environ 不含使用者金鑰，預載結果是空字串。
+        #    之後只讀寫這個 dict，永遠不再碰 os.environ，
+        #    確保每位使用者完全隔離。
+        "session_keys": {k: os.getenv(k, "") for k in _ALL_KEY_VARS},
+        "setup_done":   False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -134,10 +141,12 @@ def _is_cloud() -> bool:
 
 def _get_key(env_var: str) -> str:
     """
-    讀取 API 金鑰，優先順序：
-      1. 本 session 使用者輸入（各使用者隔離）
-      2. Streamlit Cloud Secrets（部署者選填，可作為預設）
-      3. .env / 系統環境變數（本機執行）
+    讀取 API 金鑰：
+      1. session_keys（使用者本次 session，完全隔離）
+      2. st.secrets（部署者在 Streamlit Cloud 設定的預設值）
+    永遠不讀 os.environ — 雲端 os.environ 是跨 session 共用的，
+    一旦讀取可能拿到其他使用者的 Key。
+    本機 .env 的值已在 _init_state() 預載進 session_keys，無需再讀。
     """
     session_val = st.session_state.get("session_keys", {}).get(env_var, "")
     if session_val:
@@ -147,34 +156,35 @@ def _get_key(env_var: str) -> str:
             return str(st.secrets[env_var])
     except Exception:
         pass
-    return os.getenv(env_var, "")
+    return ""
 
 
 def _save_api_key(env_var: str, value: str):
     """
     儲存 API Key：
-      1. session_keys（本次 session 立即生效，各使用者完全隔離）
-      2. os.environ（僅本機執行時寫入；雲端跳過，避免跨 session 污染）
-      3. .env 檔（僅本機執行時持久化）
+      1. session_keys（永遠寫入，各使用者完全隔離，雲端唯一儲存位置）
+      2. .env 檔（僅本機執行時持久化；不寫 os.environ，避免跨 session 污染）
     """
-    # 1. Session state — 永遠寫入，雲端唯一儲存位置
+    # 1. Session state（雲端 & 本機都寫）
     if "session_keys" not in st.session_state:
-        st.session_state["session_keys"] = {}
+        st.session_state["session_keys"] = {k: "" for k in _ALL_KEY_VARS}
     st.session_state["session_keys"][env_var] = value
-    # 2 & 3. 本機才寫 os.environ 與 .env（雲端 os.environ 是共用的，絕對不能寫）
+    # 2. 本機：持久化到 .env（不寫 os.environ，session_keys 已足夠）
     if not _is_cloud():
-        os.environ[env_var] = value
-        env_path = Path(__file__).parent / ".env"
-        lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
-        updated = False
-        for i, line in enumerate(lines):
-            if line.startswith(f"{env_var}="):
-                lines[i] = f"{env_var}={value}"
-                updated = True
-                break
-        if not updated:
-            lines.append(f"{env_var}={value}")
-        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        try:
+            env_path = Path(__file__).parent / ".env"
+            lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+            updated = False
+            for i, line in enumerate(lines):
+                if line.startswith(f"{env_var}="):
+                    lines[i] = f"{env_var}={value}"
+                    updated = True
+                    break
+            if not updated:
+                lines.append(f"{env_var}={value}")
+            env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except (PermissionError, OSError):
+            pass
 
 
 # ════════════════════════════════════════════════════════

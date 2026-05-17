@@ -466,10 +466,11 @@ def build_user_prompt(market_data: FullMarketData) -> str:
 
 def _get_api_key(env_var: str) -> str:
     """
-    讀取 API Key（Session 優先，避免雲端跨用戶污染）：
-      1. Streamlit session_state（各使用者完全隔離）
-      2. st.secrets（部署者設定的預設值）
-      3. os.environ（本機執行 / .env 載入）
+    讀取 API Key（Session 優先，永不讀 os.environ，避免雲端跨用戶污染）：
+      1. Streamlit session_state["session_keys"]（各使用者完全隔離）
+         — 本機 .env 的值已在 app.py _init_state() 預載進此 dict
+      2. st.secrets（部署者在 Streamlit Cloud 設定的預設值）
+      不 fallback 到 os.environ：雲端 os.environ 是跨 session 共用的。
     """
     try:
         import streamlit as st
@@ -481,9 +482,10 @@ def _get_api_key(env_var: str) -> str:
                 return str(st.secrets[env_var])
         except Exception:
             pass
+        return ""
     except Exception:
-        pass
-    return os.getenv(env_var, "")
+        # 非 Streamlit 環境（例如單元測試）才 fallback 到 os.environ
+        return os.getenv(env_var, "")
 
 
 def _call_anthropic(model_id: str, system_prompt: str, user_prompt: str, max_tokens: int = 2800) -> dict:
