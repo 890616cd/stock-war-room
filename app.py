@@ -71,9 +71,9 @@ hr { margin: 12px 0 !important; opacity: .25; }
 /* ── 手機響應式優化（768px 以下）────── */
 @media (max-width: 768px) {
 
-    /* 主內容區：左右給足 padding，防止文字被截切 */
+    /* 主內容區：top padding 撐過頂部工具列高度（約 48px），防止標題被遮 */
     .block-container {
-        padding: 0.75rem 1.1rem 3rem 1.1rem !important;
+        padding: 3.5rem 1.1rem 3rem 1.1rem !important;
         max-width: 100% !important;
     }
 
