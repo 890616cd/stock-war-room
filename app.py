@@ -189,6 +189,10 @@ def _init_state():
 
 _init_state()
 
+# ── 中繼導覽：在 sidebar（radio）渲染前套用，避免 widget key 衝突 ──
+if "_go_to_page" in st.session_state:
+    st.session_state["nav_page"] = st.session_state.pop("_go_to_page")
+
 
 # ════════════════════════════════════════════════════════
 #  個股輕量報價抓取（yfinance 免費，TTL 5 分鐘快取）
@@ -284,8 +288,8 @@ FMP、Finnhub、Marketaux 為選填擴充，提供更完整的估值與新聞資
     st.divider()
     c1, c2 = st.columns(2)
     if c1.button("🔑 前往 API 金鑰設定", type="primary", use_container_width=True):
-        st.session_state["setup_done"] = True
-        st.session_state["nav_page"]   = "📚 教學指南"
+        st.session_state["setup_done"]  = True
+        st.session_state["_go_to_page"] = "📚 教學指南"
         st.rerun()
     if c2.button("稍後再說", use_container_width=True):
         st.session_state["setup_done"] = True
@@ -461,7 +465,7 @@ def render_stock_detail(symbol: str, name: str):
     btn_back, btn_refresh, _ = st.columns([2, 2, 6])
     if btn_back.button("← 返回自選股管理", type="secondary"):
         st.session_state["selected_stock"] = None
-        st.session_state["nav_page"] = "📋 自選股管理"
+        st.session_state["_go_to_page"] = "📋 自選股管理"
         st.rerun()
     if btn_refresh.button("🔄 重新整理數據", type="secondary"):
         fetch_stock_quick.clear()          # 清除 yfinance 快取，強制重新抓取
