@@ -464,8 +464,30 @@ def build_user_prompt(market_data: FullMarketData) -> str:
 #  多模型呼叫介面
 # ══════════════════════════════════════════════
 
+def _get_api_key(env_var: str) -> str:
+    """
+    讀取 API Key（Session 優先，避免雲端跨用戶污染）：
+      1. Streamlit session_state（各使用者完全隔離）
+      2. st.secrets（部署者設定的預設值）
+      3. os.environ（本機執行 / .env 載入）
+    """
+    try:
+        import streamlit as st
+        session_val = st.session_state.get("session_keys", {}).get(env_var, "")
+        if session_val:
+            return session_val
+        try:
+            if env_var in st.secrets:
+                return str(st.secrets[env_var])
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return os.getenv(env_var, "")
+
+
 def _call_anthropic(model_id: str, system_prompt: str, user_prompt: str, max_tokens: int = 2800) -> dict:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = _get_api_key("ANTHROPIC_API_KEY")
     if not api_key:
         raise EnvironmentError("ANTHROPIC_API_KEY 未設定")
     client = anthropic.Anthropic(api_key=api_key)
@@ -483,7 +505,7 @@ def _call_anthropic(model_id: str, system_prompt: str, user_prompt: str, max_tok
 
 
 def _call_openai(model_id: str, system_prompt: str, user_prompt: str, max_tokens: int = 2800) -> dict:
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = _get_api_key("OPENAI_API_KEY")
     if not api_key:
         raise EnvironmentError("OPENAI_API_KEY 未設定")
     try:
@@ -508,7 +530,7 @@ def _call_openai(model_id: str, system_prompt: str, user_prompt: str, max_tokens
 
 
 def _call_gemini(model_id: str, system_prompt: str, user_prompt: str, max_tokens: int = 2800) -> dict:
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = _get_api_key("GOOGLE_API_KEY")
     if not api_key:
         raise EnvironmentError("GOOGLE_API_KEY 未設定")
     try:
