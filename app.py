@@ -461,6 +461,7 @@ def render_stock_detail(symbol: str, name: str):
     btn_back, btn_refresh, _ = st.columns([2, 2, 6])
     if btn_back.button("← 返回自選股管理", type="secondary"):
         st.session_state["selected_stock"] = None
+        st.session_state["nav_page"] = "📋 自選股管理"
         st.rerun()
     if btn_refresh.button("🔄 重新整理數據", type="secondary"):
         fetch_stock_quick.clear()          # 清除 yfinance 快取，強制重新抓取
@@ -1080,6 +1081,13 @@ with st.sidebar:
 # ════════════════════════════════════════════════════════
 
 _sel = st.session_state.get("selected_stock")
+
+# 如果使用者在個股頁面點擊了 sidebar 的其他頁面，
+# 優先尊重導覽意圖：清除個股狀態，讓路由正常進入目標頁面。
+if _sel is not None and page != "📋 自選股管理":
+    st.session_state["selected_stock"] = None
+    _sel = None
+
 if _sel is not None:
     render_stock_detail(_sel["symbol"], _sel["name"])
 
