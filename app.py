@@ -1338,12 +1338,10 @@ elif page == "🤖 模型與偏好":
 elif page == "📚 教學指南":
     st.header("📚 教學指南 & API 設定")
 
-    tab_keys, tab_deploy, tab_ai, tab_data, tab_sys = st.tabs([
+    tab_keys, tab_ai, tab_data = st.tabs([
         "🔑 API 金鑰管理",
-        "☁️ 雲端部署",
         "🤖 AI 模型申請",
         "📊 財經資料 API",
-        "⚙️ 系統資訊",
     ])
 
     # ── Tab 1：API 金鑰管理 ──────────────────────────────
@@ -1386,8 +1384,8 @@ elif page == "📚 教學指南":
                     st.warning("請輸入有效的 Key 值")
             st.markdown("")
 
-    # ── Tab 2：雲端部署指南 ───────────────────────────────
-    with tab_deploy:
+    # ── Tab 2（已移除：雲端部署） ─────────────────────────
+    if False:
         st.subheader("☁️ 部署到 Streamlit Community Cloud")
         st.markdown("免費取得永久網址，讓所有人點擊即可使用，無需安裝任何軟體。")
 
@@ -1472,7 +1470,7 @@ MARKETAUX_API_KEY = "你的金鑰"
 Streamlit Cloud 會**自動偵測並重新部署**，網址不會改變。
         """)
 
-    # ── Tab 3：AI 模型申請指南 ───────────────────────────
+    # ── Tab 2：AI 模型申請指南 ───────────────────────────
     with tab_ai:
         st.subheader("🤖 AI 模型 API 申請指南")
         st.markdown("""
@@ -1535,57 +1533,5 @@ Streamlit Cloud 會**自動偵測並重新部署**，網址不會改變。
 - 提供 ForwardPE、AnalystTargetPrice
         """)
 
-    # ── Tab 4：系統資訊 ─────────────────────────────────
-    with tab_sys:
-        st.subheader("📁 系統資訊")
-        st.markdown("**快速啟動**")
-        st.code("""
-# 1. 安裝依賴
-pip install streamlit yfinance anthropic requests feedparser \\
-            python-dotenv plotly pandas numpy
-
-# 選裝（啟用其他 AI 模型）
-pip install openai                  # GPT-4o 系列
-pip install google-generativeai     # Gemini 系列
-
-# 2. 建立 .env（或在教學指南 > API 金鑰管理 頁面設定）
-ANTHROPIC_API_KEY=sk-ant-你的金鑰
-FINNHUB_KEY=你的Finnhub金鑰        # 推薦，免費申請
-FMP_KEY=你的FMP金鑰                # 推薦，多年估值數據
-MARKETAUX_API_KEY=你的金鑰          # 選填
-OPENAI_API_KEY=sk-proj-...          # 選填，啟用 GPT
-GOOGLE_API_KEY=AIza...              # 選填，啟用 Gemini（免費方案）
-
-# 3. 啟動
-streamlit run app.py
-        """, language="bash")
-
-        st.divider()
-        st.subheader("系統模組")
-        files_info = [
-            ("app.py",                       "Streamlit UI 主程式"),
-            ("module1_data_fetcher.py",       "模組一：多來源報價抓取（FMP+yfinance+Finnhub）"),
-            ("module1_news_engine.py",        "模組一子模組：三類別新聞情報（Marketaux+Finnhub+RSS）"),
-            ("module1_watchlist.py",          "模組一子模組：自選股清單管理"),
-            ("module2_discipline_warning.py", "模組二：紀律警告協議（硬邏輯核心）"),
-            ("module3_llm_summarizer.py",     "模組三：多模型 LLM 戰情摘要（Claude/GPT/Gemini）"),
-            ("module_stock_chart.py",         "K線技術分析圖（Plotly）"),
-            ("watchlist.json",                "自選股清單"),
-            (".env",                          "API 金鑰（請勿分享或上傳至 Git）"),
-        ]
-        for fname, desc in files_info:
-            exists = Path(fname).exists()
-            st.markdown(f"{'✅' if exists else '❌'} `{fname}` — {desc}")
-
-        st.divider()
-        st.subheader("⚠️ 紀律警告閾值（模組二）")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown("**VIX 恐慌指數**")
-            st.markdown("🟡 黃燈：≥ 20.0\n🔴 紅燈：≥ 30.0\n⚫ 黑色：≥ 40.0")
-        with c2:
-            st.markdown("**US10Y 殖利率**")
-            st.markdown("🟡 黃燈：≥ 4.30%\n🔴 紅燈：≥ 4.70%\n⚫ 黑色：≥ 5.20%")
-        with c3:
-            st.markdown("**S&P500 日跌幅**")
-            st.markdown("🔴 紅燈：≤ -2.0%\n⚫ 黑天鵝熔斷：≤ -7.0%")
+    # ── Tab 3：財經資料 API（已是 tab_data，無需變動）────
+    # （系統資訊 Tab 已移除，使用者不需要看到）
