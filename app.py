@@ -153,18 +153,17 @@ def _get_key(env_var: str) -> str:
 def _save_api_key(env_var: str, value: str):
     """
     儲存 API Key：
-      1. session_keys（本次 session 立即生效，各使用者隔離）
-      2. os.environ（供模組 os.getenv 讀取，當次程序內有效）
-      3. .env 檔（僅本機執行時持久化；雲端環境略過，避免污染共用容器）
+      1. session_keys（本次 session 立即生效，各使用者完全隔離）
+      2. os.environ（僅本機執行時寫入；雲端跳過，避免跨 session 污染）
+      3. .env 檔（僅本機執行時持久化）
     """
-    # 1. Session state
+    # 1. Session state — 永遠寫入，雲端唯一儲存位置
     if "session_keys" not in st.session_state:
         st.session_state["session_keys"] = {}
     st.session_state["session_keys"][env_var] = value
-    # 2. 當次程序
-    os.environ[env_var] = value
-    # 3. 持久化 .env（本機限定）
+    # 2 & 3. 本機才寫 os.environ 與 .env（雲端 os.environ 是共用的，絕對不能寫）
     if not _is_cloud():
+        os.environ[env_var] = value
         env_path = Path(__file__).parent / ".env"
         lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
         updated = False
