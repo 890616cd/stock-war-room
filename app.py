@@ -70,14 +70,84 @@ hr { margin: 12px 0 !important; opacity: .25; }
 
 /* ── 手機響應式優化（768px 以下）────── */
 @media (max-width: 768px) {
-    .block-container { padding: 0.5rem 0.8rem 2rem !important; }
-    [data-testid="stSidebar"] { min-width: 80vw !important; max-width: 88vw !important; }
-    [data-testid="stMetricValue"] { font-size: 17px !important; }
+
+    /* 主內容區：左右給足 padding，防止文字被截切 */
+    .block-container {
+        padding: 0.75rem 1.1rem 3rem 1.1rem !important;
+        max-width: 100% !important;
+    }
+
+    /* Sidebar：全寬遮罩式，不擠壓主內容 */
+    [data-testid="stSidebar"] {
+        min-width: 82vw !important;
+        max-width: 88vw !important;
+    }
+    [data-testid="stSidebar"] .block-container {
+        padding: 1rem 1rem !important;
+    }
+
+    /* 頁面標題（st.header / st.subheader）縮小 */
+    h1, [data-testid="stHeading"] h1 { font-size: 20px !important; line-height: 1.3 !important; }
+    h2, [data-testid="stHeading"] h2 { font-size: 17px !important; }
+    h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
+
+    /* Tabs：emoji + 短文字仍可顯示，不換行截斷 */
+    .stTabs [data-baseweb="tab-list"] { gap: 0px !important; }
+    .stTabs [data-baseweb="tab"] {
+        font-size: 11px !important;
+        padding: 6px 7px !important;
+        white-space: nowrap;
+        min-width: 0 !important;
+    }
+
+    /* Metric 卡片 */
+    [data-testid="stMetric"] { padding: 8px 10px !important; }
+    [data-testid="stMetricValue"] { font-size: 16px !important; }
     [data-testid="stMetricLabel"] { font-size: 9px !important; }
-    .stMarkdown p, .stMarkdown li { font-size: 13px !important; }
-    .stTabs [data-baseweb="tab"] { font-size: 12px !important; padding: 6px 8px !important; }
-    .stButton > button { min-height: 44px; font-size: 14px !important; }
+    [data-testid="stMetricDelta"] { font-size: 11px !important; }
+
+    /* 內文 & 清單 */
+    .stMarkdown p, .stMarkdown li { font-size: 13px !important; line-height: 1.6 !important; }
+    .stMarkdown h2 { font-size: 15px !important; }
+    .stMarkdown h3 { font-size: 14px !important; }
+
+    /* Info / Warning / Success box */
+    [data-testid="stAlert"] {
+        font-size: 12px !important;
+        padding: 0.55rem 0.75rem !important;
+        line-height: 1.5 !important;
+    }
+
+    /* Caption 說明文字 */
+    [data-testid="stCaptionContainer"] p,
+    .stCaption { font-size: 11px !important; }
+
+    /* 輸入欄位 */
+    [data-testid="stTextInput"] input,
+    [data-testid="stTextArea"] textarea {
+        font-size: 14px !important;
+    }
+
+    /* 按鈕：觸控友善最小高度 */
+    .stButton > button {
+        min-height: 44px !important;
+        font-size: 13px !important;
+        padding: 0.4rem 0.8rem !important;
+    }
+
+    /* Expander 標題 */
+    [data-testid="stExpander"] summary {
+        font-size: 13px !important;
+    }
+
+    /* checkbox label */
+    [data-testid="stCheckbox"] label { font-size: 13px !important; }
+
+    /* 防止任何元素橫向溢出 */
+    * { box-sizing: border-box; }
+    .element-container { max-width: 100% !important; }
 }
+
 /* 表格在小螢幕可橫向滾動 */
 [data-testid="stDataFrame"] { overflow-x: auto !important; }
 </style>
