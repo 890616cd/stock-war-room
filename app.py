@@ -97,7 +97,7 @@ def _init_state():
         "running":        False,
         "run_step":       "",
         "selected_stock": None,   # {"symbol": str, "name": str}，None = 無選取
-        "selected_models":     ["claude-sonnet-4-5"],
+        "selected_models":     ["claude-sonnet-4-6"],
         "custom_prompt":       "",
         "multi_reports":       {},
         "stock_multi_reports": {},
@@ -341,7 +341,7 @@ def run_full_analysis():
                 call_model, format_final_report, MODEL_CATALOG,
             )
             custom_p  = st.session_state.get("custom_prompt", "")
-            sel_models = st.session_state.get("selected_models", ["claude-sonnet-4-5"])
+            sel_models = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
             sys_p  = build_system_prompt(assessment, market_data, custom_p)
             user_p = build_user_prompt(market_data)
             multi: dict = {}
@@ -895,7 +895,7 @@ def render_stock_detail(symbol: str, name: str):
 
             # ── Step 3：多模型呼叫 ────────────────────────
             from module3_llm_summarizer import call_model, MODEL_CATALOG
-            sel = st.session_state.get("selected_models", ["claude-sonnet-4-5"])
+            sel = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
             custom_p = st.session_state.get("custom_prompt", "")
             sys_p_stock = (
                 "你是一位謹慎的量化交易副官。"
@@ -1257,38 +1257,53 @@ elif page == "🤖 模型與偏好":
     st.subheader("AI 模型選擇")
     st.caption("根據已設定的 API 金鑰，系統自動顯示可用模型。多選時報告將分頁對比顯示。")
 
-    # 各供應商的推薦模型清單（不依賴 MODEL_CATALOG，支援最新版本）
+    # 各供應商推薦模型清單（最新版 + 前代穩定版分組）
     _PROVIDER_META = {
         "anthropic": {
             "label": "🟠 Anthropic Claude",
             "env":   "ANTHROPIC_API_KEY",
-            "models": [
-                ("claude-sonnet-4-5", "Claude Sonnet 4.5 ⭐ 推薦", "🟠"),
-                ("claude-haiku-3-5",  "Claude Haiku 3.5（快速省費）", "🟡"),
-                ("claude-opus-4-5",   "Claude Opus 4.5（最強）", "🔵"),
+            "latest": [
+                ("claude-opus-4-7",  "Claude Opus 4.7",    "🔵", "旗艦，最強推理"),
+                ("claude-sonnet-4-6","Claude Sonnet 4.6",  "🟠", "⭐ 推薦，速度/品質最佳平衡"),
+                ("claude-haiku-4-5", "Claude Haiku 4.5",   "🟡", "輕量快速，最省費用"),
+            ],
+            "stable": [
+                ("claude-opus-4-5",  "Claude Opus 4.5",    "🔵", "前代旗艦"),
+                ("claude-sonnet-4-5","Claude Sonnet 4.5",  "🟠", "前代均衡"),
+                ("claude-haiku-3-5", "Claude Haiku 3.5",   "🟡", "前代輕量"),
             ],
         },
         "openai": {
             "label": "🟢 OpenAI GPT",
             "env":   "OPENAI_API_KEY",
-            "models": [
-                ("gpt-4o",       "GPT-4o ⭐ 推薦", "🟢"),
-                ("gpt-4o-mini",  "GPT-4o Mini（快速省費）", "🟩"),
-                ("o3",           "o3（推理增強）", "🟢"),
+            "latest": [
+                ("gpt-5.5",     "GPT-5.5",      "🟢", "旗艦，最強智能"),
+                ("gpt-5.4",     "GPT-5.4",      "🟢", "⭐ 推薦，均衡性價比"),
+                ("gpt-5.4-mini","GPT-5.4 Mini", "🟩", "輕量快速，最省費用"),
+            ],
+            "stable": [
+                ("gpt-4o",      "GPT-4o",       "🟢", "前代旗艦"),
+                ("gpt-4o-mini", "GPT-4o Mini",  "🟩", "前代輕量"),
+                ("o3",          "o3",           "🔷", "前代推理增強"),
             ],
         },
         "google": {
             "label": "🔴 Google Gemini",
             "env":   "GOOGLE_API_KEY",
-            "models": [
-                ("gemini-2.0-flash", "Gemini 2.0 Flash ⭐ 推薦", "🔴"),
-                ("gemini-2.5-pro",   "Gemini 2.5 Pro（最新旗艦）", "🔶"),
-                ("gemini-1.5-pro",   "Gemini 1.5 Pro", "🔶"),
+            "latest": [
+                ("gemini-3.1-pro-preview",  "Gemini 3.1 Pro",       "🔴", "旗艦，最強推理（付費）"),
+                ("gemini-3-flash-preview",  "Gemini 3 Flash",        "🔶", "⭐ 推薦，免費方案可用"),
+                ("gemini-3.1-flash-lite",   "Gemini 3.1 Flash Lite", "🟡", "最省費用，免費方案可用"),
+            ],
+            "stable": [
+                ("gemini-2.5-pro",        "Gemini 2.5 Pro",       "🔴", "前代旗艦（付費）"),
+                ("gemini-2.5-flash",      "Gemini 2.5 Flash",     "🔶", "前代均衡，免費方案可用"),
+                ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite","🟡", "前代輕量，免費方案可用"),
             ],
         },
     }
 
-    cur_sel = list(st.session_state.get("selected_models", ["claude-sonnet-4-5"]))
+    cur_sel = list(st.session_state.get("selected_models", ["claude-sonnet-4-6"]))
     new_sel = []
 
     has_any_key = any(_get_key(m["env"]) for m in _PROVIDER_META.values())
@@ -1296,28 +1311,45 @@ elif page == "🤖 模型與偏好":
     if not has_any_key:
         st.warning("⚠️ 尚未設定任何 AI 模型金鑰，請先至「📚 教學指南」設定 API Key 才能啟用模型。")
     else:
-        col_m1, col_m2 = st.columns(2)
-        col_idx = 0
         for prov_id, meta in _PROVIDER_META.items():
             key_val = _get_key(meta["env"])
-            col = col_m1 if col_idx % 2 == 0 else col_m2
-            col_idx += 1
-            with col:
-                if key_val:
-                    st.markdown(f"**{meta['label']}**")
-                    for mid, label, icon in meta["models"]:
-                        checked = st.checkbox(
-                            f"{icon} {label}",
-                            value=mid in cur_sel,
-                            key=f"chk_{mid}",
-                        )
-                        if checked:
-                            new_sel.append(mid)
-                else:
-                    st.markdown(
-                        f"<span style='color:#aaa'>**{meta['label']}**　<em>（金鑰未設定）</em></span>",
-                        unsafe_allow_html=True,
+            if not key_val:
+                # 灰色顯示未設定的供應商
+                st.markdown(
+                    f"<span style='color:#bbb; font-size:13px'>{meta['label']}　——　金鑰未設定，前往「📚 教學指南」輸入</span>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("")
+                continue
+
+            st.markdown(f"**{meta['label']}**")
+            col_latest, col_stable = st.columns(2)
+
+            with col_latest:
+                st.caption("🆕 最新版")
+                for mid, label, icon, note in meta["latest"]:
+                    checked = st.checkbox(
+                        f"{icon} {label}",
+                        value=mid in cur_sel,
+                        key=f"chk_{mid}",
+                        help=note,
                     )
+                    if checked:
+                        new_sel.append(mid)
+
+            with col_stable:
+                st.caption("🔒 前代穩定版")
+                for mid, label, icon, note in meta["stable"]:
+                    checked = st.checkbox(
+                        f"{icon} {label}",
+                        value=mid in cur_sel,
+                        key=f"chk_{mid}",
+                        help=note,
+                    )
+                    if checked:
+                        new_sel.append(mid)
+
+            st.markdown("")
 
     st.divider()
 
@@ -1476,12 +1508,88 @@ elif page == "📚 教學指南":
             key="smart_api_key_input",
         )
 
-        # 即時偵測提示
+        # 即時偵測提示 + 模型選擇器
+        _SMART_MODEL_LIST = {
+            "anthropic": {
+                "latest": [
+                    ("claude-opus-4-7",  "🔵 Claude Opus 4.7",    "旗艦，最強推理"),
+                    ("claude-sonnet-4-6","🟠 Claude Sonnet 4.6 ⭐","推薦，速度/品質最佳平衡"),
+                    ("claude-haiku-4-5", "🟡 Claude Haiku 4.5",   "輕量快速，最省費用"),
+                ],
+                "stable": [
+                    ("claude-opus-4-5",  "🔵 Claude Opus 4.5",    "前代旗艦"),
+                    ("claude-sonnet-4-5","🟠 Claude Sonnet 4.5",  "前代均衡"),
+                    ("claude-haiku-3-5", "🟡 Claude Haiku 3.5",   "前代輕量"),
+                ],
+            },
+            "openai": {
+                "latest": [
+                    ("gpt-5.5",      "🟢 GPT-5.5",       "旗艦，最強智能"),
+                    ("gpt-5.4",      "🟢 GPT-5.4 ⭐",    "推薦，均衡性價比"),
+                    ("gpt-5.4-mini", "🟩 GPT-5.4 Mini",  "輕量快速，最省費用"),
+                ],
+                "stable": [
+                    ("gpt-4o",       "🟢 GPT-4o",        "前代旗艦"),
+                    ("gpt-4o-mini",  "🟩 GPT-4o Mini",   "前代輕量"),
+                    ("o3",           "🔷 o3",            "前代推理增強"),
+                ],
+            },
+            "google": {
+                "latest": [
+                    ("gemini-3.1-pro-preview", "🔴 Gemini 3.1 Pro",       "旗艦（付費）"),
+                    ("gemini-3-flash-preview",  "🔶 Gemini 3 Flash ⭐",   "推薦，免費方案可用"),
+                    ("gemini-3.1-flash-lite",   "🟡 Gemini 3.1 Flash Lite","最省費用，免費方案可用"),
+                ],
+                "stable": [
+                    ("gemini-2.5-pro",        "🔴 Gemini 2.5 Pro",        "前代旗艦（付費）"),
+                    ("gemini-2.5-flash",      "🔶 Gemini 2.5 Flash",      "前代均衡，免費方案可用"),
+                    ("gemini-2.5-flash-lite", "🟡 Gemini 2.5 Flash Lite", "前代輕量，免費方案可用"),
+                ],
+            },
+        }
+
         if smart_key_input.strip():
             _sprov, _senv = detect_provider_from_key(smart_key_input.strip())
             if _sprov:
                 _sinfo = _AI_PROVIDER_INFO[_sprov]
                 st.success(f"✅ 偵測到：{_sinfo['label']}　　{_sinfo['note']}")
+
+                # 偵測到供應商後，直接顯示該供應商的模型選擇
+                st.markdown(f"**選擇要使用的模型（{_sinfo['label']}）**")
+                _cur_sel_smart = list(st.session_state.get("selected_models", []))
+                _new_sel_smart = [m for m in _cur_sel_smart]  # copy
+
+                _sm_data = _SMART_MODEL_LIST.get(_sprov, {})
+                _sc1, _sc2 = st.columns(2)
+                with _sc1:
+                    st.caption("🆕 最新版")
+                    for _smid, _slabel, _snote in _sm_data.get("latest", []):
+                        _sch = st.checkbox(
+                            _slabel, value=_smid in _cur_sel_smart,
+                            key=f"smart_chk_{_smid}", help=_snote,
+                        )
+                        if _sch:
+                            if _smid not in _new_sel_smart:
+                                _new_sel_smart.append(_smid)
+                        else:
+                            if _smid in _new_sel_smart:
+                                _new_sel_smart.remove(_smid)
+                with _sc2:
+                    st.caption("🔒 前代穩定版")
+                    for _smid, _slabel, _snote in _sm_data.get("stable", []):
+                        _sch = st.checkbox(
+                            _slabel, value=_smid in _cur_sel_smart,
+                            key=f"smart_chk_{_smid}", help=_snote,
+                        )
+                        if _sch:
+                            if _smid not in _new_sel_smart:
+                                _new_sel_smart.append(_smid)
+                        else:
+                            if _smid in _new_sel_smart:
+                                _new_sel_smart.remove(_smid)
+
+                st.session_state["selected_models"] = _new_sel_smart if _new_sel_smart else _cur_sel_smart
+
             else:
                 st.warning("⚠️ 無法識別供應商，請確認 Key 格式（支援：`sk-ant-`、`sk-proj-`、`sk-`、`AIza`）")
 

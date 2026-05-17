@@ -28,16 +28,33 @@ MAX_TOKENS = 2800
 # ══════════════════════════════════════════════
 
 MODEL_CATALOG: dict[str, dict] = {
-    # ── Anthropic Claude ─────────────────────────────────────────
-    "claude-sonnet-4-5":  {"provider": "anthropic", "label": "Claude Sonnet 4.5", "icon": "🟠", "env_key": "ANTHROPIC_API_KEY", "max_tokens": 2800},
+    # ══ Anthropic Claude ══════════════════════════════════════════
+    # 最新世代（2026）
+    "claude-opus-4-7":    {"provider": "anthropic", "label": "Claude Opus 4.7",   "icon": "🔵", "env_key": "ANTHROPIC_API_KEY", "max_tokens": 4096},
+    "claude-sonnet-4-6":  {"provider": "anthropic", "label": "Claude Sonnet 4.6", "icon": "🟠", "env_key": "ANTHROPIC_API_KEY", "max_tokens": 4096},
+    "claude-haiku-4-5":   {"provider": "anthropic", "label": "Claude Haiku 4.5",  "icon": "🟡", "env_key": "ANTHROPIC_API_KEY", "max_tokens": 4096},
+    # 前代穩定版（2025）
     "claude-opus-4-5":    {"provider": "anthropic", "label": "Claude Opus 4.5",   "icon": "🔵", "env_key": "ANTHROPIC_API_KEY", "max_tokens": 2800},
+    "claude-sonnet-4-5":  {"provider": "anthropic", "label": "Claude Sonnet 4.5", "icon": "🟠", "env_key": "ANTHROPIC_API_KEY", "max_tokens": 2800},
     "claude-haiku-3-5":   {"provider": "anthropic", "label": "Claude Haiku 3.5",  "icon": "🟡", "env_key": "ANTHROPIC_API_KEY", "max_tokens": 2800},
-    # ── OpenAI ───────────────────────────────────────────────────
+    # ══ OpenAI ════════════════════════════════════════════════════
+    # 最新世代（2026）
+    "gpt-5.5":            {"provider": "openai",    "label": "GPT-5.5",           "icon": "🟢", "env_key": "OPENAI_API_KEY",     "max_tokens": 4096},
+    "gpt-5.4":            {"provider": "openai",    "label": "GPT-5.4",           "icon": "🟢", "env_key": "OPENAI_API_KEY",     "max_tokens": 4096},
+    "gpt-5.4-mini":       {"provider": "openai",    "label": "GPT-5.4 Mini",      "icon": "🟩", "env_key": "OPENAI_API_KEY",     "max_tokens": 4096},
+    # 前代穩定版（2025）
     "gpt-4o":             {"provider": "openai",    "label": "GPT-4o",            "icon": "🟢", "env_key": "OPENAI_API_KEY",     "max_tokens": 2800},
     "gpt-4o-mini":        {"provider": "openai",    "label": "GPT-4o Mini",       "icon": "🟩", "env_key": "OPENAI_API_KEY",     "max_tokens": 2800},
-    # ── Google Gemini ─────────────────────────────────────────────
-    "gemini-2.0-flash":   {"provider": "google",    "label": "Gemini 2.0 Flash",  "icon": "🔴", "env_key": "GOOGLE_API_KEY",     "max_tokens": 2800},
-    "gemini-1.5-pro":     {"provider": "google",    "label": "Gemini 1.5 Pro",    "icon": "🔶", "env_key": "GOOGLE_API_KEY",     "max_tokens": 2800},
+    "o3":                 {"provider": "openai",    "label": "o3（推理增強）",     "icon": "🔷", "env_key": "OPENAI_API_KEY",     "max_tokens": 2800},
+    # ══ Google Gemini ═════════════════════════════════════════════
+    # 最新世代（2026）
+    "gemini-3.1-pro-preview":  {"provider": "google", "label": "Gemini 3.1 Pro",      "icon": "🔴", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
+    "gemini-3-flash-preview":  {"provider": "google", "label": "Gemini 3 Flash",       "icon": "🔶", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
+    "gemini-3.1-flash-lite":   {"provider": "google", "label": "Gemini 3.1 Flash Lite","icon": "🟡", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
+    # 前代穩定版（2025）
+    "gemini-2.5-pro":          {"provider": "google", "label": "Gemini 2.5 Pro",       "icon": "🔴", "env_key": "GOOGLE_API_KEY", "max_tokens": 2800},
+    "gemini-2.5-flash":        {"provider": "google", "label": "Gemini 2.5 Flash",     "icon": "🔶", "env_key": "GOOGLE_API_KEY", "max_tokens": 2800},
+    "gemini-2.5-flash-lite":   {"provider": "google", "label": "Gemini 2.5 Flash Lite","icon": "🟡", "env_key": "GOOGLE_API_KEY", "max_tokens": 2800},
 }
 
 # ══════════════════════════════════════════════
