@@ -40,6 +40,40 @@ MODEL_CATALOG: dict[str, dict] = {
     "gemini-1.5-pro":     {"provider": "google",    "label": "Gemini 1.5 Pro",    "icon": "🔶", "env_key": "GOOGLE_API_KEY",     "max_tokens": 2800},
 }
 
+# ══════════════════════════════════════════════
+#  動態 Provider 偵測
+# ══════════════════════════════════════════════
+
+def detect_provider_from_key(key: str) -> tuple:
+    """
+    從 API Key 前綴自動偵測供應商。
+    返回 (provider, env_var) 或 (None, None)。
+    """
+    k = key.strip()
+    if k.startswith("sk-ant-"):
+        return "anthropic", "ANTHROPIC_API_KEY"
+    if k.startswith("sk-proj-") or (k.startswith("sk-") and not k.startswith("sk-ant-")):
+        return "openai", "OPENAI_API_KEY"
+    if k.startswith("AIza"):
+        return "google", "GOOGLE_API_KEY"
+    return None, None
+
+
+def detect_provider_from_model_id(model_id: str) -> str:
+    """
+    從模型 ID 名稱推斷供應商。
+    支援 MODEL_CATALOG 以外的任意自訂版本（如 gemini-2.5-pro、claude-opus-4）。
+    """
+    m = model_id.lower()
+    if "claude" in m:
+        return "anthropic"
+    if any(x in m for x in ["gpt-", "o1-", "o3-", "o4-", "chatgpt", "o1", "o3", "o4"]):
+        return "openai"
+    if "gemini" in m:
+        return "google"
+    return "unknown"
+
+
 # 警戒等級 → LLM 角色人設
 # 透過 Persona 控制語氣偏向，避免高風險時 LLM 給出樂觀偏差
 ALERT_PERSONA = {
@@ -477,18 +511,19 @@ def _call_gemini(model_id: str, system_prompt: str, user_prompt: str, max_tokens
 
 def call_model(model_id: str, system_prompt: str, user_prompt: str) -> dict:
     """
-    統一多模型呼叫介面。
+    統一多模型呼叫介面。支援 MODEL_CATALOG 已知型號及任意自訂模型 ID。
     返回：{text, elapsed_sec, input_tokens, output_tokens, provider, model_id, label, icon, error}
     """
     cat      = MODEL_CATALOG.get(model_id, {})
-    provider = cat.get("provider", "anthropic")
+    # 優先從目錄取得 provider；若不在目錄（自訂版本），則由名稱推斷
+    provider = cat.get("provider") or detect_provider_from_model_id(model_id)
     t0       = time.time()
     try:
         mx = cat.get("max_tokens", 2800)
         if   provider == "anthropic": res = _call_anthropic(model_id, system_prompt, user_prompt, mx)
         elif provider == "openai":    res = _call_openai(model_id, system_prompt, user_prompt, mx)
         elif provider == "google":    res = _call_gemini(model_id, system_prompt, user_prompt, mx)
-        else: raise ValueError(f"未知 provider：{provider}")
+        else: raise ValueError(f"無法識別模型供應商（{model_id}）。請確認模型 ID 包含 'claude' / 'gpt' / 'gemini' 等關鍵字。")
         res["error"] = None
     except Exception as e:
         res = {"text": "", "input_tokens": 0, "output_tokens": 0, "error": str(e)}
@@ -497,7 +532,7 @@ def call_model(model_id: str, system_prompt: str, user_prompt: str) -> dict:
         "elapsed_sec": round(time.time() - t0, 1),
         "provider":    provider,
         "model_id":    model_id,
-        "label":       cat.get("label", model_id),
+        "label":       cat.get("label", model_id),   # 自訂 ID 直接顯示 model_id
         "icon":        cat.get("icon",  "🤖"),
     })
     return res
