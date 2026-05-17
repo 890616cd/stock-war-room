@@ -185,20 +185,22 @@ def _save_api_key(env_var: str, value: str):
 @st.dialog("👋 歡迎使用美股投資戰情室")
 def _show_onboarding():
     st.markdown("""
-系統需要 **AI 模型 API 金鑰**，才能生成市場分析與個股戰術報告。
+使用 AI 分析功能需要至少一組 **AI 模型 API 金鑰**。
 
-#### 必填
-🟠 **Anthropic Claude** — 核心 AI 分析引擎
+| 模型 | 費用 | 說明 |
+|---|---|---|
+| 🟠 **Anthropic Claude** ⭐ 推薦 | 依用量計費 | 報告品質最佳 |
+| 🟢 **OpenAI GPT-4o** | 依用量計費 | 可與 Claude 交叉驗證 |
+| 🔴 **Google Gemini 2.0 Flash** | **免費方案可用** | 適合作為第二模型 |
 
-#### 選填（多模型交叉驗證）
-🟢 **OpenAI GPT-4o** · 🔴 **Google Gemini 2.0 Flash**（免費方案可用）
+所有模型均為 **選填**，設定其中一個即可開始使用。
 
 ---
 
-財經數據方面，系統已內建 **Yahoo Finance 免費源**，不需要任何金鑰即可抓取報價。
-其他財經 API（FMP、Finnhub、Marketaux）為選填擴充。
+財經報價已內建 **Yahoo Finance 免費源**，不設定任何金鑰也能抓取股價數據。
+FMP、Finnhub、Marketaux 為選填擴充，提供更完整的估值與新聞資料。
 
-> 💡 點擊「前往設定」可在教學指南頁面直接輸入金鑰，儲存後立即生效，無需重啟。
+> 💡 點擊「前往設定」在教學指南直接輸入金鑰，儲存後立即生效。
     """)
     st.divider()
     c1, c2 = st.columns(2)
@@ -911,8 +913,9 @@ def render_stock_detail(symbol: str, name: str):
             st.rerun()
 
 
-# ── 首次訪問：無 API Key 時彈出設定導引 ──────────────────
-if not _get_key("ANTHROPIC_API_KEY") and not st.session_state.get("setup_done"):
+# ── 首次訪問：無任何 AI 模型 Key 時彈出設定導引 ──────────
+_has_any_ai_key = any(_get_key(k) for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"))
+if not _has_any_ai_key and not st.session_state.get("setup_done"):
     _show_onboarding()
 
 with st.sidebar:
@@ -1356,18 +1359,18 @@ elif page == "📚 教學指南":
             st.caption("在此輸入各服務的 API Key，系統將寫入 .env 並立即生效，無需重啟。")
 
         key_defs = [
-            ("ANTHROPIC_API_KEY", "🟠 Anthropic（Claude）",       "sk-ant-...",    True,  "必填 — Claude 模型所需"),
-            ("OPENAI_API_KEY",    "🟢 OpenAI（GPT-4o）",          "sk-proj-...",   False, "選填 — 啟用 GPT 系列模型"),
-            ("GOOGLE_API_KEY",    "🔴 Google（Gemini）",           "AIza...",       False, "選填 — 啟用 Gemini 系列模型"),
-            ("MARKETAUX_API_KEY", "📰 Marketaux（財經新聞）",     "xxx...xxx",     False, "選填 — 高品質財經新聞（100次/天）"),
-            ("FINNHUB_KEY",       "📊 Finnhub（個股數據/新聞）",  "xxx...xxx",     False, "選填 — 個股新聞、推薦評等、財務指標"),
-            ("FMP_KEY",           "🏦 FMP（多年估值預測）",        "xxx...xxx",     False, "選填 — 3年 EPS、F P/E、成長率預估"),
-            ("ALPHA_VANTAGE_KEY", "📈 Alpha Vantage（備援）",      "xxx...xxx",     False, "選填 — ForwardPE 備援（25次/天）"),
+            ("ANTHROPIC_API_KEY", "🟠 Anthropic（Claude）",       "sk-ant-...",  "選填 — 報告品質最佳，⭐ 推薦首選"),
+            ("OPENAI_API_KEY",    "🟢 OpenAI（GPT-4o）",          "sk-proj-...", "選填 — 啟用 GPT 系列，可與 Claude 交叉驗證"),
+            ("GOOGLE_API_KEY",    "🔴 Google（Gemini）",           "AIza...",     "選填 — Gemini 2.0 Flash 有免費方案，適合作為第二模型"),
+            ("MARKETAUX_API_KEY", "📰 Marketaux（財經新聞）",     "xxx...xxx",   "選填 — 高品質財經新聞（100次/天）"),
+            ("FINNHUB_KEY",       "📊 Finnhub（個股數據/新聞）",  "xxx...xxx",   "選填 — 個股新聞、推薦評等、財務指標"),
+            ("FMP_KEY",           "🏦 FMP（多年估值預測）",        "xxx...xxx",   "選填 — 3年 EPS、F P/E、成長率預估"),
+            ("ALPHA_VANTAGE_KEY", "📈 Alpha Vantage（備援）",      "xxx...xxx",   "選填 — ForwardPE 備援（25次/天）"),
         ]
-        for env_var, label, placeholder, required, note in key_defs:
+        for env_var, label, placeholder, note in key_defs:
             cur_val = _get_key(env_var)
             masked  = f"...{cur_val[-8:]}" if len(cur_val) > 8 else ("已設定" if cur_val else "")
-            st.markdown(f"**{label}** {'🔴 必填' if required else '🔵 選填'}")
+            st.markdown(f"**{label}** 🔵 選填")
             st.caption(note)
             col_inp, col_btn = st.columns([5, 1])
             new_val = col_inp.text_input(
@@ -1378,7 +1381,7 @@ elif page == "📚 教學指南":
                 label_visibility = "collapsed",
                 key         = f"inp_{env_var}",
             )
-            if col_btn.button("儲存", key=f"save_{env_var}", type="primary" if required else "secondary"):
+            if col_btn.button("儲存", key=f"save_{env_var}", type="secondary"):
                 if new_val.strip():
                     _save_api_key(env_var, new_val.strip())
                     st.success(f"✅ {label} 已儲存並生效")
