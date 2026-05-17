@@ -942,7 +942,7 @@ with st.sidebar:
 
     # ── AI 模型 ──────────────────────────────────────────
     st.caption("🤖 AI 分析模型")
-    from module3_llm_summarizer import MODEL_CATALOG
+    from module3_llm_summarizer import MODEL_CATALOG, detect_provider_from_model_id
     sel_models_sb = st.session_state.get("selected_models", ["claude-sonnet-4-5"])
     _key_map = {
         "anthropic": api_key,
@@ -950,17 +950,19 @@ with st.sidebar:
         "google":    google_key,
     }
     for mid in sel_models_sb:
-        cat = MODEL_CATALOG.get(mid, {})
-        prov = cat.get("provider", "")
+        cat   = MODEL_CATALOG.get(mid, {})
+        prov  = cat.get("provider") or detect_provider_from_model_id(mid)
+        icon  = cat.get("icon", {"anthropic": "🟠", "openai": "🟢", "google": "🔴"}.get(prov, "🤖"))
+        label = cat.get("label", mid)
         has_key = bool(_key_map.get(prov, ""))
         if has_key:
             st.markdown(
-                f"<span style='font-size:12px'>{cat.get('icon','🤖')} {cat.get('label', mid)}</span>",
+                f"<span style='font-size:12px'>{icon} {label}</span>",
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                f"<span style='font-size:12px; color:#aaa'>{cat.get('icon','🤖')} {cat.get('label', mid)}　<em>金鑰未設定</em></span>",
+                f"<span style='font-size:12px; color:#aaa'>{icon} {label}　<em>金鑰未設定</em></span>",
                 unsafe_allow_html=True,
             )
 
@@ -1249,50 +1251,135 @@ elif page == "📋 自選股管理":
 elif page == "🤖 模型與偏好":
     st.header("🤖 模型與偏好設定")
 
-    from module3_llm_summarizer import MODEL_CATALOG
+    from module3_llm_summarizer import MODEL_CATALOG, detect_provider_from_model_id
 
     # ── 可用模型選擇 ──────────────────────────────────────
     st.subheader("AI 模型選擇")
-    st.caption("勾選執行分析時要使用的模型。多選時報告將分頁對比顯示，並附上各模型生成時間。")
+    st.caption("根據已設定的 API 金鑰，系統自動顯示可用模型。多選時報告將分頁對比顯示。")
 
-    _env_keys = {
-        "ANTHROPIC_API_KEY": _get_key("ANTHROPIC_API_KEY"),
-        "OPENAI_API_KEY":    _get_key("OPENAI_API_KEY"),
-        "GOOGLE_API_KEY":    _get_key("GOOGLE_API_KEY"),
+    # 各供應商的推薦模型清單（不依賴 MODEL_CATALOG，支援最新版本）
+    _PROVIDER_META = {
+        "anthropic": {
+            "label": "🟠 Anthropic Claude",
+            "env":   "ANTHROPIC_API_KEY",
+            "models": [
+                ("claude-sonnet-4-5", "Claude Sonnet 4.5 ⭐ 推薦", "🟠"),
+                ("claude-haiku-3-5",  "Claude Haiku 3.5（快速省費）", "🟡"),
+                ("claude-opus-4-5",   "Claude Opus 4.5（最強）", "🔵"),
+            ],
+        },
+        "openai": {
+            "label": "🟢 OpenAI GPT",
+            "env":   "OPENAI_API_KEY",
+            "models": [
+                ("gpt-4o",       "GPT-4o ⭐ 推薦", "🟢"),
+                ("gpt-4o-mini",  "GPT-4o Mini（快速省費）", "🟩"),
+                ("o3",           "o3（推理增強）", "🟢"),
+            ],
+        },
+        "google": {
+            "label": "🔴 Google Gemini",
+            "env":   "GOOGLE_API_KEY",
+            "models": [
+                ("gemini-2.0-flash", "Gemini 2.0 Flash ⭐ 推薦", "🔴"),
+                ("gemini-2.5-pro",   "Gemini 2.5 Pro（最新旗艦）", "🔶"),
+                ("gemini-1.5-pro",   "Gemini 1.5 Pro", "🔶"),
+            ],
+        },
     }
-    cur_sel = st.session_state.get("selected_models", ["claude-sonnet-4-5"])
+
+    cur_sel = list(st.session_state.get("selected_models", ["claude-sonnet-4-5"]))
     new_sel = []
 
-    col_m1, col_m2 = st.columns(2)
-    providers_order = [
-        ("anthropic", "🟠 Anthropic Claude"),
-        ("openai",    "🟢 OpenAI GPT"),
-        ("google",    "🔴 Google Gemini"),
-    ]
-    col_idx = 0
-    for prov, prov_label in providers_order:
-        models_in_prov = [(mid, cat) for mid, cat in MODEL_CATALOG.items() if cat["provider"] == prov]
-        col = col_m1 if col_idx % 2 == 0 else col_m2
-        col_idx += 1
-        with col:
-            st.markdown(f"**{prov_label}**")
-            key_available = bool(_env_keys.get(models_in_prov[0][1]["env_key"], "")) if models_in_prov else False
-            if not key_available:
-                st.caption(f"⚠️ {models_in_prov[0][1]['env_key']} 未設定，請至教學指南設定")
-            for mid, cat in models_in_prov:
-                checked = st.checkbox(
-                    f"{cat['icon']} {cat['label']}",
-                    value     = mid in cur_sel,
-                    disabled  = not key_available,
-                    key       = f"chk_{mid}",
-                )
-                if checked and key_available:
-                    new_sel.append(mid)
+    has_any_key = any(_get_key(m["env"]) for m in _PROVIDER_META.values())
 
+    if not has_any_key:
+        st.warning("⚠️ 尚未設定任何 AI 模型金鑰，請先至「📚 教學指南」設定 API Key 才能啟用模型。")
+    else:
+        col_m1, col_m2 = st.columns(2)
+        col_idx = 0
+        for prov_id, meta in _PROVIDER_META.items():
+            key_val = _get_key(meta["env"])
+            col = col_m1 if col_idx % 2 == 0 else col_m2
+            col_idx += 1
+            with col:
+                if key_val:
+                    st.markdown(f"**{meta['label']}**")
+                    for mid, label, icon in meta["models"]:
+                        checked = st.checkbox(
+                            f"{icon} {label}",
+                            value=mid in cur_sel,
+                            key=f"chk_{mid}",
+                        )
+                        if checked:
+                            new_sel.append(mid)
+                else:
+                    st.markdown(
+                        f"<span style='color:#aaa'>**{meta['label']}**　<em>（金鑰未設定）</em></span>",
+                        unsafe_allow_html=True,
+                    )
+
+    st.divider()
+
+    # ── 自訂模型 ID ──────────────────────────────────────
+    st.markdown("**🔧 自訂模型 ID（進階）**")
+    st.caption("輸入任意模型 ID，可使用最新版本或未列出的模型。系統會從名稱自動判斷供應商（需已設定對應金鑰）。")
+    st.caption("範例：`gemini-2.5-pro-preview-06-05`、`claude-opus-4`、`gpt-4-turbo`")
+
+    custom_model_ids: list = list(st.session_state.get("custom_model_ids", []))
+
+    col_ci, col_ca = st.columns([5, 1])
+    custom_input = col_ci.text_input(
+        "自訂模型 ID",
+        placeholder="例：gemini-2.5-pro-preview-06-05",
+        label_visibility="collapsed",
+        key="custom_model_text_input",
+    )
+    if col_ca.button("➕ 加入", key="btn_add_custom_model", use_container_width=True):
+        mid_clean = custom_input.strip()
+        if mid_clean and mid_clean not in custom_model_ids:
+            custom_model_ids.append(mid_clean)
+            st.session_state["custom_model_ids"] = custom_model_ids
+            if mid_clean not in cur_sel:
+                cur_sel.append(mid_clean)
+            st.rerun()
+        elif mid_clean in custom_model_ids:
+            st.info(f"「{mid_clean}」已在清單中")
+
+    for cid in custom_model_ids:
+        prov   = detect_provider_from_model_id(cid)
+        p_icon = {"anthropic": "🟠", "openai": "🟢", "google": "🔴"}.get(prov, "🤖")
+        p_key  = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}.get(prov, "")
+        key_ok = bool(_get_key(p_key)) if p_key else False
+        ccol1, ccol2 = st.columns([9, 1])
+        suffix = "" if key_ok else "　⚠️ 金鑰未設定"
+        checked_c = ccol1.checkbox(
+            f"{p_icon} {cid}（自訂）{suffix}",
+            value=cid in cur_sel,
+            disabled=not key_ok,
+            key=f"chk_custom_{cid}",
+        )
+        if ccol2.button("✕", key=f"rm_custom_{cid}", help="移除此自訂模型"):
+            custom_model_ids.remove(cid)
+            st.session_state["custom_model_ids"] = custom_model_ids
+            if cid in cur_sel:
+                cur_sel.remove(cid)
+            st.rerun()
+        if checked_c and key_ok:
+            new_sel.append(cid)
+
+    # fallback：至少選一個
     if not new_sel:
-        new_sel = ["claude-sonnet-4-5"]
+        for prov_id, meta in _PROVIDER_META.items():
+            if _get_key(meta["env"]):
+                new_sel = [meta["models"][0][0]]
+                break
+        if not new_sel:
+            new_sel = ["claude-sonnet-4-5"]
+
     st.session_state["selected_models"] = new_sel
-    st.caption(f"✅ 已選擇：{', '.join(MODEL_CATALOG.get(m,{}).get('label',m) for m in new_sel)}")
+    sel_labels = [MODEL_CATALOG.get(m, {}).get("label", m) for m in new_sel]
+    st.caption(f"✅ 已選擇：{', '.join(sel_labels)}")
 
     st.divider()
 
@@ -1358,16 +1445,97 @@ elif page == "📚 教學指南":
         else:
             st.caption("在此輸入各服務的 API Key，系統將寫入 .env 並立即生效，無需重啟。")
 
-        key_defs = [
-            ("ANTHROPIC_API_KEY", "🟠 Anthropic（Claude）",       "sk-ant-...",  "選填 — 報告品質最佳，⭐ 推薦首選"),
-            ("OPENAI_API_KEY",    "🟢 OpenAI（GPT-4o）",          "sk-proj-...", "選填 — 啟用 GPT 系列，可與 Claude 交叉驗證"),
-            ("GOOGLE_API_KEY",    "🔴 Google（Gemini）",           "AIza...",     "選填 — Gemini 2.0 Flash 有免費方案，適合作為第二模型"),
-            ("MARKETAUX_API_KEY", "📰 Marketaux（財經新聞）",     "xxx...xxx",   "選填 — 高品質財經新聞（100次/天）"),
-            ("FINNHUB_KEY",       "📊 Finnhub（個股數據/新聞）",  "xxx...xxx",   "選填 — 個股新聞、推薦評等、財務指標"),
-            ("FMP_KEY",           "🏦 FMP（多年估值預測）",        "xxx...xxx",   "選填 — 3年 EPS、F P/E、成長率預估"),
-            ("ALPHA_VANTAGE_KEY", "📈 Alpha Vantage（備援）",      "xxx...xxx",   "選填 — ForwardPE 備援（25次/天）"),
-        ]
-        for env_var, label, placeholder, note in key_defs:
+        from module3_llm_summarizer import detect_provider_from_key
+
+        # ── AI 模型金鑰（智慧單欄輸入）────────────────────
+        st.markdown("### 🤖 AI 模型金鑰")
+        st.caption("貼上任一家 AI 模型的 API Key，系統自動識別供應商並儲存到對應欄位。")
+
+        _AI_PROVIDER_INFO = {
+            "anthropic": {"label": "🟠 Anthropic（Claude）",  "env": "ANTHROPIC_API_KEY", "note": "⭐ 推薦 — 報告品質最佳"},
+            "openai":    {"label": "🟢 OpenAI（GPT-4o）",     "env": "OPENAI_API_KEY",    "note": "可與 Claude 交叉驗證"},
+            "google":    {"label": "🔴 Google（Gemini）",      "env": "GOOGLE_API_KEY",    "note": "Gemini 2.0 Flash 有免費方案"},
+        }
+
+        # 目前已設定狀態
+        _set_ai = []
+        for _pid, _pinfo in _AI_PROVIDER_INFO.items():
+            _k = _get_key(_pinfo["env"])
+            if _k:
+                _set_ai.append(f"{_pinfo['label']} `...{_k[-6:]}`")
+        if _set_ai:
+            st.success("✅ 已設定：" + "　　".join(_set_ai))
+        else:
+            st.warning("⚠️ 尚未設定任何 AI 模型金鑰。")
+
+        smart_key_input = st.text_input(
+            "貼上 AI API Key（自動識別供應商）",
+            value="",
+            type="password",
+            placeholder="sk-ant-...  /  sk-proj-...  /  AIza...",
+            key="smart_api_key_input",
+        )
+
+        # 即時偵測提示
+        if smart_key_input.strip():
+            _sprov, _senv = detect_provider_from_key(smart_key_input.strip())
+            if _sprov:
+                _sinfo = _AI_PROVIDER_INFO[_sprov]
+                st.success(f"✅ 偵測到：{_sinfo['label']}　　{_sinfo['note']}")
+            else:
+                st.warning("⚠️ 無法識別供應商，請確認 Key 格式（支援：`sk-ant-`、`sk-proj-`、`sk-`、`AIza`）")
+
+        _col_save_ai, _ = st.columns([2, 8])
+        if _col_save_ai.button("💾 儲存 AI 金鑰", type="primary", key="save_smart_key"):
+            _k = smart_key_input.strip()
+            if _k:
+                _sprov, _senv = detect_provider_from_key(_k)
+                if _sprov:
+                    _save_api_key(_senv, _k)
+                    st.success(f"✅ {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰已儲存並生效！")
+                    st.rerun()
+                else:
+                    st.error("❌ 無法識別供應商，請確認 Key 格式正確")
+            else:
+                st.warning("請先輸入 API Key")
+
+        with st.expander("🔧 進階：手動逐一設定各供應商金鑰", expanded=False):
+            for _env_var, _label, _placeholder, _note in [
+                ("ANTHROPIC_API_KEY", "🟠 Anthropic（Claude）",  "sk-ant-...",  "⭐ 推薦 — 報告品質最佳"),
+                ("OPENAI_API_KEY",    "🟢 OpenAI（GPT-4o）",     "sk-proj-...", "可與 Claude 交叉驗證"),
+                ("GOOGLE_API_KEY",    "🔴 Google（Gemini）",      "AIza...",     "Gemini 2.0 Flash 有免費方案"),
+            ]:
+                _cur = _get_key(_env_var)
+                _masked = f"...{_cur[-8:]}" if len(_cur) > 8 else ("已設定" if _cur else "")
+                st.caption(f"**{_label}** — {_note}")
+                _ac1, _ac2 = st.columns([5, 1])
+                _anv = _ac1.text_input(
+                    f"_{_env_var}_adv",
+                    value="", placeholder=_masked if _masked else _placeholder,
+                    type="password", label_visibility="collapsed",
+                    key=f"adv_inp_{_env_var}",
+                )
+                if _ac2.button("儲存", key=f"adv_save_{_env_var}"):
+                    if _anv.strip():
+                        _save_api_key(_env_var, _anv.strip())
+                        st.success("✅ 已儲存")
+                        st.rerun()
+                    else:
+                        st.warning("請輸入有效的 Key")
+                st.markdown("")
+
+        st.divider()
+
+        # ── 財經資料 API（各自獨立）──────────────────────
+        st.markdown("### 📊 財經資料 API（選填）")
+        st.caption("以下為增強型資料源，不設定也可正常使用 Yahoo Finance 基礎數據。")
+
+        for env_var, label, placeholder, note in [
+            ("MARKETAUX_API_KEY", "📰 Marketaux（財經新聞）",    "xxx...xxx", "高品質財經新聞（100次/天）"),
+            ("FINNHUB_KEY",       "📊 Finnhub（個股數據/新聞）", "xxx...xxx", "個股新聞、推薦評等、財務指標"),
+            ("FMP_KEY",           "🏦 FMP（多年估值預測）",       "xxx...xxx", "3年 EPS、F P/E、成長率預估"),
+            ("ALPHA_VANTAGE_KEY", "📈 Alpha Vantage（備援）",     "xxx...xxx", "ForwardPE 備援（25次/天）"),
+        ]:
             cur_val = _get_key(env_var)
             masked  = f"...{cur_val[-8:]}" if len(cur_val) > 8 else ("已設定" if cur_val else "")
             st.markdown(f"**{label}** 🔵 選填")
