@@ -65,6 +65,9 @@ hr { margin: 12px 0 !important; opacity: .25; }
 .stMarkdown li { font-size: 14px; line-height: 1.6; }
 .stMarkdown blockquote { border-left: 3px solid #4A90E2; padding-left: 12px; color: #555; font-size: 13px; }
 
+/* ── 隱藏右上角工具列（Share / 書籤 / 編輯 / 選單）── */
+[data-testid="stToolbarActions"] { display: none !important; }
+
 /* ── 手機響應式優化（768px 以下）────── */
 @media (max-width: 768px) {
     .block-container { padding: 0.5rem 0.8rem 2rem !important; }
