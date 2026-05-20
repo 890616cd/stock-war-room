@@ -195,20 +195,84 @@ if "_go_to_page" in st.session_state:
 
 
 # ════════════════════════════════════════════════════════
-#  登入驗證（Google / GitHub OAuth）
+#  登入驗證（自定義 Google OAuth，不依賴 st.login / session cookie）
 # ════════════════════════════════════════════════════════
 
-def _get_streamlit_user():
-    """相容 st.user（新版）與 st.experimental_user（舊版）"""
+import urllib.parse
+import requests as _http
+
+_APP_URL      = "https://stock-war-room-ikuxxykprqgetqxbmygt6p.streamlit.app"
+_GOOGLE_AUTH  = "https://accounts.google.com/o/oauth2/v2/auth"
+_GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
+_GOOGLE_INFO  = "https://www.googleapis.com/oauth2/v2/userinfo"
+
+
+def _google_client_id() -> str:
     try:
-        return st.user
-    except AttributeError:
-        return st.experimental_user
+        return str(st.secrets["auth"]["google"]["client_id"])
+    except Exception:
+        return ""
 
-_auth_user = _get_streamlit_user()
 
-if not _auth_user.is_logged_in:
-    # ── 未登入：顯示歡迎頁 ────────────────────────────────
+def _google_client_secret() -> str:
+    try:
+        return str(st.secrets["auth"]["google"]["client_secret"])
+    except Exception:
+        return ""
+
+
+def _build_google_auth_url() -> str:
+    cid = _google_client_id()
+    if not cid:
+        return ""
+    params = {
+        "client_id":     cid,
+        "redirect_uri":  _APP_URL,
+        "response_type": "code",
+        "scope":         "openid email profile",
+        "access_type":   "online",
+        "prompt":        "select_account",
+    }
+    return _GOOGLE_AUTH + "?" + urllib.parse.urlencode(params)
+
+
+def _exchange_google_code(code: str) -> dict:
+    """用 authorization code 換取使用者資訊"""
+    try:
+        token_resp = _http.post(_GOOGLE_TOKEN, data={
+            "client_id":     _google_client_id(),
+            "client_secret": _google_client_secret(),
+            "code":          code,
+            "grant_type":    "authorization_code",
+            "redirect_uri":  _APP_URL,
+        }, timeout=10)
+        token_data = token_resp.json()
+        if "access_token" not in token_data:
+            return {}
+        user_resp = _http.get(_GOOGLE_INFO,
+            headers={"Authorization": f"Bearer {token_data['access_token']}"},
+            timeout=10)
+        return user_resp.json()
+    except Exception:
+        return {}
+
+
+# ── 處理 OAuth callback（Google 把 ?code= 附在網址上）──────
+_qp = st.query_params
+if "code" in _qp and not st.session_state.get("_oauth_user"):
+    with st.spinner("登入中，請稍候…"):
+        _user_info = _exchange_google_code(_qp["code"])
+    if _user_info.get("email"):
+        st.session_state["_oauth_user"] = _user_info
+        st.query_params.clear()
+        st.rerun()
+    else:
+        st.error("⚠️ Google 登入失敗，請重試。")
+        st.query_params.clear()
+        st.stop()
+
+# ── 未登入：顯示歡迎頁 ────────────────────────────────────
+if not st.session_state.get("_oauth_user"):
     st.markdown("""
 <div style="text-align:center; padding: 3rem 1rem 1rem;">
   <div style="font-size:56px">⚔️</div>
@@ -216,34 +280,34 @@ if not _auth_user.is_logged_in:
   <p style="color:#666; font-size:15px; margin-bottom:2rem">AI 副官系統 · 登入後資料自動同步，無需重複設定</p>
 </div>
 """, unsafe_allow_html=True)
-
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
-        # st.login() 必須直接在主流程呼叫，不能放 on_click callback
-        if st.button("🔵　使用 Google 帳號登入",
-                     use_container_width=True, type="primary"):
-            st.login("google")
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-        if st.button("⚫　使用 GitHub 帳號登入",
-                     use_container_width=True):
-            st.login("github")
+        _auth_url = _build_google_auth_url()
+        if _auth_url:
+            st.link_button("🔵　使用 Google 帳號登入",
+                           _auth_url,
+                           use_container_width=True,
+                           type="primary")
+        else:
+            st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
         st.divider()
         st.caption("🔒 登入資訊僅用於識別身份，不儲存密碼。\n\nAPI 金鑰以加密方式存入資料庫，僅你本人可讀取。")
     st.stop()
 
 # ── 已登入：取得使用者識別資料 ──────────────────────────
-_current_user_id   = getattr(_auth_user, "email", None) or getattr(_auth_user, "sub", "unknown")
-_current_user_name = getattr(_auth_user, "name", _current_user_id)
-_current_user_pic  = getattr(_auth_user, "picture", None)
+_oauth_user        = st.session_state["_oauth_user"]
+_current_user_id   = _oauth_user.get("email", "unknown")
+_current_user_name = _oauth_user.get("name", _current_user_id)
+_current_user_pic  = _oauth_user.get("picture", None)
 
 # ── 首次登入此 Session：從 Supabase 載入資料 ─────────────
-st.session_state["_current_user_id_cache"] = _current_user_id  # 供其他函式取用
+st.session_state["_current_user_id_cache"] = _current_user_id
 if not st.session_state.get("user_data_loaded"):
     try:
         from module_storage import load_user_data
         load_user_data(_current_user_id)
     except Exception as _e:
-        st.session_state["user_data_loaded"] = True  # 失敗時仍繼續執行
+        st.session_state["user_data_loaded"] = True
 
 
 # ════════════════════════════════════════════════════════
@@ -1098,7 +1162,9 @@ with st.sidebar:
         except Exception as _se:
             st.toast(f"同步失敗：{_se}", icon="⚠️")
     if _col_logout.button("登出", use_container_width=True, key="btn_logout"):
-        st.logout()
+        st.session_state.pop("_oauth_user", None)
+        st.session_state["user_data_loaded"] = False
+        st.rerun()
 
     st.divider()
 
