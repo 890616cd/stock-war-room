@@ -219,17 +219,14 @@ if not _auth_user.is_logged_in:
 
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
-        st.button(
-            "🔵　使用 Google 帳號登入",
-            on_click=st.login, args=("google",),
-            use_container_width=True, type="primary",
-        )
+        # st.login() 必須直接在主流程呼叫，不能放 on_click callback
+        if st.button("🔵　使用 Google 帳號登入",
+                     use_container_width=True, type="primary"):
+            st.login("google")
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-        st.button(
-            "⚫　使用 GitHub 帳號登入",
-            on_click=st.login, args=("github",),
-            use_container_width=True,
-        )
+        if st.button("⚫　使用 GitHub 帳號登入",
+                     use_container_width=True):
+            st.login("github")
         st.divider()
         st.caption("🔒 登入資訊僅用於識別身份，不儲存密碼。\n\nAPI 金鑰以加密方式存入資料庫，僅你本人可讀取。")
     st.stop()
