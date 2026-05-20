@@ -195,6 +195,61 @@ if "_go_to_page" in st.session_state:
 
 
 # ════════════════════════════════════════════════════════
+#  登入驗證（Google / GitHub OAuth）
+# ════════════════════════════════════════════════════════
+
+def _get_streamlit_user():
+    """相容 st.user（新版）與 st.experimental_user（舊版）"""
+    try:
+        return st.user
+    except AttributeError:
+        return st.experimental_user
+
+_auth_user = _get_streamlit_user()
+
+if not _auth_user.is_logged_in:
+    # ── 未登入：顯示歡迎頁 ────────────────────────────────
+    st.markdown("""
+<div style="text-align:center; padding: 3rem 1rem 1rem;">
+  <div style="font-size:56px">⚔️</div>
+  <h1 style="font-size:28px; font-weight:700; margin:0.5rem 0">美股投資戰情室</h1>
+  <p style="color:#666; font-size:15px; margin-bottom:2rem">AI 副官系統 · 登入後資料自動同步，無需重複設定</p>
+</div>
+""", unsafe_allow_html=True)
+
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        st.button(
+            "🔵　使用 Google 帳號登入",
+            on_click=st.login, args=("google",),
+            use_container_width=True, type="primary",
+        )
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        st.button(
+            "⚫　使用 GitHub 帳號登入",
+            on_click=st.login, args=("github",),
+            use_container_width=True,
+        )
+        st.divider()
+        st.caption("🔒 登入資訊僅用於識別身份，不儲存密碼。\n\nAPI 金鑰以加密方式存入資料庫，僅你本人可讀取。")
+    st.stop()
+
+# ── 已登入：取得使用者識別資料 ──────────────────────────
+_current_user_id   = getattr(_auth_user, "email", None) or getattr(_auth_user, "sub", "unknown")
+_current_user_name = getattr(_auth_user, "name", _current_user_id)
+_current_user_pic  = getattr(_auth_user, "picture", None)
+
+# ── 首次登入此 Session：從 Supabase 載入資料 ─────────────
+st.session_state["_current_user_id_cache"] = _current_user_id  # 供其他函式取用
+if not st.session_state.get("user_data_loaded"):
+    try:
+        from module_storage import load_user_data
+        load_user_data(_current_user_id)
+    except Exception as _e:
+        st.session_state["user_data_loaded"] = True  # 失敗時仍繼續執行
+
+
+# ════════════════════════════════════════════════════════
 #  個股輕量報價抓取（yfinance 免費，TTL 5 分鐘快取）
 # ════════════════════════════════════════════════════════
 
@@ -258,6 +313,14 @@ def _save_api_key(env_var: str, value: str):
                 lines.append(f"{env_var}={value}")
             env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         except (PermissionError, OSError):
+            pass
+    # 3. 雲端：自動同步到 Supabase（登入狀態才執行）
+    _uid = st.session_state.get("_current_user_id_cache", "")
+    if _uid:
+        try:
+            from module_storage import save_user_data
+            save_user_data(_uid)
+        except Exception:
             pass
 
 
@@ -354,10 +417,19 @@ def save_wl(data: dict):
         except (PermissionError, OSError):
             pass
 
+def _cloud_sync_wl():
+    """自選股變更後自動同步至 Supabase"""
+    uid = st.session_state.get("_current_user_id_cache", "")
+    if uid:
+        try:
+            from module_storage import save_user_data
+            save_user_data(uid)
+        except Exception:
+            pass
+
 def wl_add(symbol: str, name: str, sector: str) -> str:
     data = load_wl()
     sym  = symbol.upper().strip()
-    # 如果已存在其他板塊，先移除
     for sec in data:
         if sym in data[sec]:
             if sec == sector:
@@ -366,6 +438,7 @@ def wl_add(symbol: str, name: str, sector: str) -> str:
             break
     data[sector][sym] = name.strip()
     save_wl(data)
+    _cloud_sync_wl()
     return f"✅ {sym}（{name}）已加入【{SECTOR_LABELS[sector]}】"
 
 def wl_remove(symbol: str) -> str:
@@ -375,6 +448,7 @@ def wl_remove(symbol: str) -> str:
         if sym in stocks:
             name = stocks.pop(sym)
             save_wl(data)
+            _cloud_sync_wl()
             return f"✅ 已移除 {sym}（{name}）"
     return f"⚠️ {sym} 不在清單中"
 
@@ -1005,6 +1079,30 @@ if not _has_any_ai_key and not st.session_state.get("setup_done"):
 with st.sidebar:
     st.markdown("### ⚔️ 美股投資戰情室")
     st.caption("AI 副官系統 · 手動觸發架構")
+
+    # ── 登入使用者資訊 ────────────────────────────────────
+    st.divider()
+    _pic_html = (
+        f"<img src='{_current_user_pic}' width='28' height='28' "
+        f"style='border-radius:50%; vertical-align:middle; margin-right:6px'>"
+        if _current_user_pic else "👤 "
+    )
+    st.markdown(
+        f"<span style='font-size:12px'>{_pic_html}{_current_user_name}</span>",
+        unsafe_allow_html=True,
+    )
+    _col_sync, _col_logout = st.columns(2)
+    if _col_sync.button("☁️ 同步", use_container_width=True, key="btn_sync",
+                        help="將目前設定儲存到雲端"):
+        try:
+            from module_storage import save_user_data
+            if save_user_data(_current_user_id):
+                st.toast("✅ 已同步至雲端", icon="☁️")
+        except Exception as _se:
+            st.toast(f"同步失敗：{_se}", icon="⚠️")
+    if _col_logout.button("登出", use_container_width=True, key="btn_logout"):
+        st.logout()
+
     st.divider()
 
     page = st.radio(
