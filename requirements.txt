@@ -27,3 +27,4 @@ python-dotenv>=1.0.0
 # ── 登入 / 資料持久化 ──────────────────────────────
 supabase>=2.0.0
 cryptography>=42.0.0
+Authlib>=1.3.2
