@@ -101,14 +101,6 @@ hr { margin: 12px 0 !important; opacity: .25; }
     h2, [data-testid="stHeading"] h2 { font-size: 17px !important; }
     h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
 
-    /* 登入頁按鈕置中：容器撐滿全寬再 flex 置中 */
-    [data-testid="stLinkButton"],
-    .stLinkButton {
-        width: 100% !important;
-        display: flex !important;
-        justify-content: center !important;
-    }
-
     /* 手機 Metric 2欄顯示 */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
@@ -334,12 +326,15 @@ if not st.session_state.get("_oauth_user"):
 </div>
 """, unsafe_allow_html=True)
 
-    if _auth_url:
-        st.link_button("🔵　使用 Google 帳號登入",
-                       _auth_url,
-                       type="primary")
-    else:
-        st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
+    _, _cb, _ = st.columns([1, 3, 1])
+    with _cb:
+        if _auth_url:
+            st.link_button("🔵　使用 Google 帳號登入",
+                           _auth_url,
+                           use_container_width=True,
+                           type="primary")
+        else:
+            st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
     st.markdown("""
 <div style="text-align:center; margin-top:1.5rem;">
   <hr style="opacity:0.2; margin-bottom:1rem;">
