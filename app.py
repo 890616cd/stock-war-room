@@ -72,9 +72,12 @@ hr { margin: 12px 0 !important; opacity: .25; }
 @media (max-width: 768px) {
 
     /* 主內容區：上方撐過工具列；左右留白讓文字不貼邊 */
-    section[data-testid="stMain"] .block-container {
-        padding: 3.5rem 1.6rem 3rem 1.6rem !important;
-        max-width: 100% !important;
+    .block-container,
+    .stMainBlockContainer,
+    section[data-testid="stMain"] > div {
+        padding-left: 1.6rem !important;
+        padding-right: 1.6rem !important;
+        padding-top: 3.5rem !important;
         box-sizing: border-box !important;
     }
 
@@ -311,25 +314,32 @@ if "code" in _qp and not st.session_state.get("_oauth_user"):
 
 # ── 未登入：顯示歡迎頁 ────────────────────────────────────
 if not st.session_state.get("_oauth_user"):
-    st.markdown("""
-<div style="text-align:center; padding: 3rem 1rem 1rem;">
-  <div style="font-size:56px">⚔️</div>
-  <h1 style="font-size:28px; font-weight:700; margin:0.5rem 0">美股投資戰情室</h1>
-  <p style="color:#666; font-size:15px; margin-bottom:2rem">AI 副官系統 · 登入後資料自動同步，無需重複設定</p>
+    _auth_url = _build_google_auth_url()
+    _btn_html = f"""
+<div style="display:flex; justify-content:center; margin:1.5rem 0 0.5rem;">
+  <a href="{_auth_url}" target="_self" style="
+    display:inline-flex; align-items:center; gap:10px;
+    background:#4A90D9; color:white;
+    padding:14px 28px; border-radius:10px;
+    text-decoration:none; font-size:16px; font-weight:600;
+    box-shadow:0 2px 8px rgba(0,0,0,0.15);
+  ">🔵　使用 Google 帳號登入</a>
+</div>
+""" if _auth_url else "<p style='color:red;text-align:center'>OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。</p>"
+
+    st.markdown(f"""
+<div style="text-align:center; padding: 3rem 1rem 0;">
+  <div style="font-size:64px">⚔️</div>
+  <h1 style="font-size:26px; font-weight:700; margin:0.8rem 0 0.4rem;">美股投資戰情室</h1>
+  <p style="color:#666; font-size:14px; margin-bottom:0.5rem;">AI 副官系統 · 登入後資料自動同步，無需重複設定</p>
+  {_btn_html}
+  <hr style="margin:1.5rem auto; max-width:320px; opacity:0.2;">
+  <p style="color:#999; font-size:12px; line-height:1.7;">
+    🔒 登入資訊僅用於識別身份，不儲存密碼。<br>
+    API 金鑰以加密方式存入資料庫，僅你本人可讀取。
+  </p>
 </div>
 """, unsafe_allow_html=True)
-    col_l, col_c, col_r = st.columns([1, 2, 1])
-    with col_c:
-        _auth_url = _build_google_auth_url()
-        if _auth_url:
-            st.link_button("🔵　使用 Google 帳號登入",
-                           _auth_url,
-                           use_container_width=True,
-                           type="primary")
-        else:
-            st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
-        st.divider()
-        st.caption("🔒 登入資訊僅用於識別身份，不儲存密碼。\n\nAPI 金鑰以加密方式存入資料庫，僅你本人可讀取。")
     st.stop()
 
 # ── 已登入：取得使用者識別資料 ──────────────────────────
@@ -1190,15 +1200,15 @@ with st.sidebar:
         f"<span style='font-size:12px'>{_pic_html}{_current_user_name}</span>",
         unsafe_allow_html=True,
     )
-    _col_sync, _col_logout, _col_pad = st.columns([1.2, 1, 1])
-    if _col_sync.button("☁️ 同步", key="btn_sync", help="將目前設定儲存到雲端"):
+    _col_sync, _col_logout = st.columns(2)
+    if _col_sync.button("☁️ 同步", key="btn_sync", use_container_width=True, help="將目前設定儲存到雲端"):
         try:
             from module_storage import save_user_data
             if save_user_data(_current_user_id):
                 st.toast("✅ 已同步至雲端", icon="☁️")
         except Exception as _se:
             st.toast(f"同步失敗：{_se}", icon="⚠️")
-    if _col_logout.button("登出", key="btn_logout"):
+    if _col_logout.button("登出", key="btn_logout", use_container_width=True):
         st.session_state.pop("_oauth_user", None)
         st.session_state["user_data_loaded"] = False
         st.rerun()
