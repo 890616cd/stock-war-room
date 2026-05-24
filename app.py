@@ -338,9 +338,17 @@ if not st.session_state.get("_oauth_user"):
 """, unsafe_allow_html=True)
 
     if _auth_url:
-        st.link_button("🔵　使用 Google 帳號登入",
-                       _auth_url,
-                       type="primary")
+        st.html(f"""
+<div style="display:flex; justify-content:center; margin: 0.5rem 0 1rem;">
+  <a href="{_auth_url}" style="
+    background:#FF4B4B; color:white;
+    padding:0.6rem 1.6rem; border-radius:0.5rem;
+    text-decoration:none; font-size:1rem; font-weight:600;
+    display:inline-flex; align-items:center; gap:0.5rem;
+    box-shadow:0 2px 6px rgba(0,0,0,0.18);
+  ">🔵　使用 Google 帳號登入</a>
+</div>
+""")
     else:
         st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
     st.markdown("""
