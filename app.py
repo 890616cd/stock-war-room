@@ -476,7 +476,7 @@ FMP、Finnhub、Marketaux 為選填擴充，提供更完整的估值與新聞資
     c1, c2 = st.columns(2)
     if c1.button("🔑 前往 API 金鑰設定", type="primary", use_container_width=True):
         st.session_state["setup_done"]  = True
-        st.session_state["_go_to_page"] = "📚 教學指南與API設定"
+        st.session_state["_go_to_page"] = "📚 教學 & API設定"
         st.rerun()
     if c2.button("稍後再說", use_container_width=True):
         st.session_state["setup_done"] = True
@@ -1232,7 +1232,7 @@ with st.sidebar:
 
     page = st.radio(
         "導覽",
-        ["🏠 戰情室主控台", "📋 自選股管理", "🤖 模型與偏好", "📚 教學指南與API設定"],
+        ["🏠 戰情室主控台", "📋 自選股管理", "🤖 模型與偏好", "📚 教學 & API設定"],
         label_visibility = "collapsed",
         key = "nav_page",
     )
@@ -1600,14 +1600,14 @@ elif page == "🤖 模型與偏好":
     has_any_key = any(_get_key(m["env"]) for m in _PROVIDER_META.values())
 
     if not has_any_key:
-        st.warning("⚠️ 尚未設定任何 AI 模型金鑰，請先至「📚 教學指南與API設定」設定 API Key 才能啟用模型。")
+        st.warning("⚠️ 尚未設定任何 AI 模型金鑰，請先至「📚 教學 & API設定」設定 API Key 才能啟用模型。")
     else:
         for prov_id, meta in _PROVIDER_META.items():
             key_val = _get_key(meta["env"])
             if not key_val:
                 # 灰色顯示未設定的供應商
                 st.markdown(
-                    f"<span style='color:#bbb; font-size:13px'>{meta['label']}　——　金鑰未設定，前往「📚 教學指南與API設定」輸入</span>",
+                    f"<span style='color:#bbb; font-size:13px'>{meta['label']}　——　金鑰未設定，前往「📚 教學 & API設定」輸入</span>",
                     unsafe_allow_html=True,
                 )
                 st.markdown("")
@@ -1751,7 +1751,7 @@ elif page == "🤖 模型與偏好":
 #  Page 4：教學指南
 # ════════════════════════════════════════════════════════
 
-elif page == "📚 教學指南與API設定":
+elif page == "📚 教學 & API設定":
     st.header("📚 教學指南 & API 設定")
 
     tab_keys, tab_ai, tab_data = st.tabs([
