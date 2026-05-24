@@ -71,19 +71,19 @@ hr { margin: 12px 0 !important; opacity: .25; }
 /* ── 手機響應式優化（768px 以下）────── */
 @media (max-width: 768px) {
 
-    /* 主內容區：top padding 撐過頂部工具列高度（約 48px），防止標題被遮 */
+    /* 主內容區：top padding 撐過頂部工具列；左右留白避免文字貼邊 */
     .block-container {
-        padding: 3.5rem 1.1rem 3rem 1.1rem !important;
+        padding: 3.5rem 1.4rem 3rem 1.4rem !important;
         max-width: 100% !important;
     }
 
-    /* Sidebar：全寬遮罩式，不擠壓主內容 */
+    /* Sidebar：縮小寬度，不佔太多畫面 */
     [data-testid="stSidebar"] {
-        min-width: 82vw !important;
-        max-width: 88vw !important;
+        min-width: 65vw !important;
+        max-width: 70vw !important;
     }
     [data-testid="stSidebar"] .block-container {
-        padding: 1rem 1rem !important;
+        padding: 1rem 0.75rem !important;
     }
 
     /* 頁面標題（st.header / st.subheader）縮小 */
@@ -1175,16 +1175,15 @@ with st.sidebar:
         f"<span style='font-size:12px'>{_pic_html}{_current_user_name}</span>",
         unsafe_allow_html=True,
     )
-    _col_sync, _col_logout = st.columns(2)
-    if _col_sync.button("☁️ 同步", use_container_width=True, key="btn_sync",
-                        help="將目前設定儲存到雲端"):
+    _col_sync, _col_logout, _col_pad = st.columns([1.2, 1, 1])
+    if _col_sync.button("☁️ 同步", key="btn_sync", help="將目前設定儲存到雲端"):
         try:
             from module_storage import save_user_data
             if save_user_data(_current_user_id):
                 st.toast("✅ 已同步至雲端", icon="☁️")
         except Exception as _se:
             st.toast(f"同步失敗：{_se}", icon="⚠️")
-    if _col_logout.button("登出", use_container_width=True, key="btn_logout"):
+    if _col_logout.button("登出", key="btn_logout"):
         st.session_state.pop("_oauth_user", None)
         st.session_state["user_data_loaded"] = False
         st.rerun()
