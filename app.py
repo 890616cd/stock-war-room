@@ -101,15 +101,12 @@ hr { margin: 12px 0 !important; opacity: .25; }
     h2, [data-testid="stHeading"] h2 { font-size: 17px !important; }
     h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
 
-    /* 登入頁按鈕置中 */
+    /* 登入頁按鈕置中：容器撐滿全寬再 flex 置中 */
     [data-testid="stLinkButton"],
     .stLinkButton {
+        width: 100% !important;
         display: flex !important;
         justify-content: center !important;
-    }
-    [data-testid="stLinkButton"] a {
-        min-width: 220px !important;
-        text-align: center !important;
     }
 
     /* 手機 Metric 2欄顯示 */
@@ -338,17 +335,9 @@ if not st.session_state.get("_oauth_user"):
 """, unsafe_allow_html=True)
 
     if _auth_url:
-        st.html(f"""
-<div style="display:flex; justify-content:center; margin: 0.5rem 0 1rem;">
-  <a href="{_auth_url}" style="
-    background:#FF4B4B; color:white;
-    padding:0.6rem 1.6rem; border-radius:0.5rem;
-    text-decoration:none; font-size:1rem; font-weight:600;
-    display:inline-flex; align-items:center; gap:0.5rem;
-    box-shadow:0 2px 6px rgba(0,0,0,0.18);
-  ">🔵　使用 Google 帳號登入</a>
-</div>
-""")
+        st.link_button("🔵　使用 Google 帳號登入",
+                       _auth_url,
+                       type="primary")
     else:
         st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
     st.markdown("""
