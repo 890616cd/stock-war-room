@@ -195,11 +195,16 @@ hr { margin: 12px 0 !important; opacity: .25; }
 }
 
 /* 登入按鈕：置中顯示 */
-[data-testid="stLinkButton"] {
+section[data-testid="stMain"] [data-testid="stLinkButton"] {
     display: flex !important;
     justify-content: center !important;
     width: 100% !important;
-    padding: 0.25rem 0 !important;
+}
+section[data-testid="stMain"] [data-testid="stLinkButton"] > a {
+    max-width: 360px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    text-align: center !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -337,7 +342,7 @@ if not st.session_state.get("_oauth_user"):
     if _auth_url:
         st.link_button("🔵　使用 Google 帳號登入",
                        _auth_url,
-                       use_container_width=False,
+                       use_container_width=True,
                        type="primary")
     else:
         st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
