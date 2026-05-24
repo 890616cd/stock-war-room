@@ -1422,44 +1422,20 @@ elif page == "📋 自選股管理":
         if total == 0:
             st.info("清單為空，請至「新增股票」頁面加入")
         else:
-            md = st.session_state.get("market_data")
-            stock_obj_map = {}
-            if md and md.watchlist:
-                for sector_stocks in md.watchlist.values():
-                    for s in sector_stocks:
-                        stock_obj_map[s.symbol] = s
-
             for sec_key, label in SECTOR_LABELS.items():
                 stocks_raw = wl_data.get(sec_key, {})
                 if not stocks_raw:
                     continue
                 with st.expander(f"【{label}】{len(stocks_raw)} 檔", expanded=True):
                     for sym, name in list(stocks_raw.items()):
-                        s_obj = stock_obj_map.get(sym)
-                        col_btn, col_sym, col_price, col_chg, col_val, col_rm = \
-                            st.columns([2.5, 1.2, 1.5, 1.2, 2.5, 1])
+                        col_btn, col_rm = st.columns([6, 1])
                         with col_btn:
-                            if st.button(f"📊 {name}", key=f"detail_{sym}",
+                            if st.button(f"📊 {name}　`{sym}`", key=f"detail_{sym}",
                                          use_container_width=True):
                                 st.session_state["selected_stock"] = {
                                     "symbol": sym, "name": name
                                 }
                                 st.rerun()
-                        col_sym.markdown(f"`{sym}`")
-                        if s_obj:
-                            col_price.markdown(f"${s_obj.price:,.2f}")
-                            sign = "+" if s_obj.change_pct >= 0 else ""
-                            col_chg.markdown(f"{sign}{s_obj.change_pct:.2f}%")
-                            if s_obj.is_profitable:
-                                fpe = f"{s_obj.forward_pe:.1f}x" if s_obj.forward_pe else "N/A"
-                                col_val.caption(f"F P/E: {fpe}")
-                            else:
-                                fps = f"{s_obj.forward_ps:.2f}x" if s_obj.forward_ps else "N/A"
-                                col_val.caption(f"F P/S: {fps}")
-                        else:
-                            col_price.markdown("──")
-                            col_chg.markdown("──")
-                            col_val.markdown("──")
                         if col_rm.button("✕", key=f"rm_{sym}", type="secondary"):
                             msg = wl_remove(sym)
                             st.toast(msg)
