@@ -1232,7 +1232,7 @@ with st.sidebar:
 
     page = st.radio(
         "導覽",
-        ["🏠 戰情室主控台", "📋 自選股管理", "🤖 模型與偏好", "📚 教學 & API設定"],
+        ["🏠 戰情室主控台", "📋 自選股管理", "⚙️ 模型與偏好", "📚 教學 & API設定"],
         label_visibility = "collapsed",
         key = "nav_page",
     )
@@ -1539,8 +1539,8 @@ elif page == "📋 自選股管理":
 #  Page 3：模型與偏好設定
 # ════════════════════════════════════════════════════════
 
-elif page == "🤖 模型與偏好":
-    st.header("🤖 模型與偏好設定")
+elif page == "⚙️ 模型與偏好":
+    st.header("⚙️ 模型與偏好設定")
 
     from module3_llm_summarizer import MODEL_CATALOG, detect_provider_from_model_id
 
