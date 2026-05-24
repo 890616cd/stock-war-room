@@ -182,6 +182,24 @@ hr { margin: 12px 0 !important; opacity: .25; }
     section[data-testid="stMain"] > div:first-child {
         padding-left: 0 !important;
     }
+
+    /* 自選股：Expander 內的欄位不換行（個股按鈕 + 刪除按鈕同一行）*/
+    [data-testid="stExpander"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        align-items: stretch !important;
+    }
+    [data-testid="stExpander"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        min-width: 0 !important;
+        overflow: hidden;
+    }
+}
+
+/* 登入按鈕：置中顯示 */
+[data-testid="stLinkButton"] {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+    padding: 0.25rem 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -316,15 +334,13 @@ if not st.session_state.get("_oauth_user"):
 </div>
 """, unsafe_allow_html=True)
 
-    _, _cb, _ = st.columns([1, 2, 1])
-    with _cb:
-        if _auth_url:
-            st.link_button("🔵　使用 Google 帳號登入",
-                           _auth_url,
-                           use_container_width=True,
-                           type="primary")
-        else:
-            st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
+    if _auth_url:
+        st.link_button("🔵　使用 Google 帳號登入",
+                       _auth_url,
+                       use_container_width=False,
+                       type="primary")
+    else:
+        st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
     st.markdown("""
 <div style="text-align:center; margin-top:1.5rem;">
   <hr style="opacity:0.2; margin-bottom:1rem;">
