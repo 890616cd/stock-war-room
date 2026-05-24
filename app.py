@@ -101,16 +101,6 @@ hr { margin: 12px 0 !important; opacity: .25; }
     h2, [data-testid="stHeading"] h2 { font-size: 17px !important; }
     h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
 
-    /* 手機 Metric 2欄顯示 */
-    [data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-        gap: 0.4rem !important;
-    }
-    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-        min-width: calc(50% - 0.4rem) !important;
-        flex: 1 1 calc(50% - 0.4rem) !important;
-    }
-
     /* Tabs：emoji + 短文字仍可顯示，不換行截斷 */
     .stTabs [data-baseweb="tab-list"] { gap: 0px !important; }
     .stTabs [data-baseweb="tab"] {
@@ -326,7 +316,7 @@ if not st.session_state.get("_oauth_user"):
 </div>
 """, unsafe_allow_html=True)
 
-    _, _cb, _ = st.columns([1, 3, 1])
+    _, _cb, _ = st.columns([1, 2, 1])
     with _cb:
         if _auth_url:
             st.link_button("🔵　使用 Google 帳號登入",
@@ -1331,9 +1321,10 @@ elif page == "🏠 戰情室主控台":
         st.markdown('<div class="alert-green">── 等待首次分析</div>', unsafe_allow_html=True)
         st.markdown("")
 
-    # ── 總經指標 ──────────────────────────────────────────
+    # ── 總經指標（手機 2+3 欄排列）────────────────────────
     md = st.session_state.get("market_data")
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3 = st.columns(3)
+    c4, c5, _  = st.columns(3)
 
     def _mc(col, label, val, delta=None, color=None):
         col.metric(label=label, value=val, delta=delta)
