@@ -99,6 +99,12 @@ hr { margin: 12px 0 !important; opacity: .25; }
     h2, [data-testid="stHeading"] h2 { font-size: 17px !important; }
     h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
 
+    /* 登入頁按鈕置中 */
+    [data-testid="stLinkButton"] {
+        display: flex !important;
+        justify-content: center !important;
+    }
+
     /* 手機 Metric 2欄顯示 */
     [data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
@@ -315,31 +321,27 @@ if "code" in _qp and not st.session_state.get("_oauth_user"):
 # ── 未登入：顯示歡迎頁 ────────────────────────────────────
 if not st.session_state.get("_oauth_user"):
     _auth_url = _build_google_auth_url()
-    _btn_html = f"""
-<div style="display:flex; justify-content:center; margin:1.5rem 0 0.5rem;">
-  <a href="{_auth_url}" target="_self" style="
-    display:inline-flex; align-items:center; gap:10px;
-    background:#4A90D9; color:white;
-    padding:14px 28px; border-radius:10px;
-    text-decoration:none; font-size:16px; font-weight:600;
-    box-shadow:0 2px 8px rgba(0,0,0,0.15);
-  ">🔵　使用 Google 帳號登入</a>
-</div>
-""" if _auth_url else "<p style='color:red;text-align:center'>OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。</p>"
 
-    st.markdown(f"""
-<div style="text-align:center; padding: 3rem 1rem 0;">
+    st.markdown("""
+<div style="text-align:center; padding: 3rem 1rem 1rem;">
   <div style="font-size:64px">⚔️</div>
   <h1 style="font-size:26px; font-weight:700; margin:0.8rem 0 0.4rem;">美股投資戰情室</h1>
-  <p style="color:#666; font-size:14px; margin-bottom:0.5rem;">AI 副官系統 · 登入後資料自動同步，無需重複設定</p>
-  {_btn_html}
-  <hr style="margin:1.5rem auto; max-width:320px; opacity:0.2;">
-  <p style="color:#999; font-size:12px; line-height:1.7;">
-    🔒 登入資訊僅用於識別身份，不儲存密碼。<br>
-    API 金鑰以加密方式存入資料庫，僅你本人可讀取。
-  </p>
+  <p style="color:#666; font-size:14px; margin-bottom:1.5rem;">AI 副官系統 · 登入後資料自動同步，無需重複設定</p>
 </div>
 """, unsafe_allow_html=True)
+
+    # 置中欄：link_button 保持原生行為，CSS 負責置中
+    _lc, _cc, _rc = st.columns([1, 2, 1])
+    with _cc:
+        if _auth_url:
+            st.link_button("🔵　使用 Google 帳號登入",
+                           _auth_url,
+                           use_container_width=True,
+                           type="primary")
+        else:
+            st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
+        st.divider()
+        st.caption("🔒 登入資訊僅用於識別身份，不儲存密碼。\n\nAPI 金鑰以加密方式存入資料庫，僅你本人可讀取。")
     st.stop()
 
 # ── 已登入：取得使用者識別資料 ──────────────────────────
