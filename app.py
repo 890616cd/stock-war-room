@@ -71,13 +71,14 @@ hr { margin: 12px 0 !important; opacity: .25; }
 /* ── 手機響應式優化（768px 以下）────── */
 @media (max-width: 768px) {
 
-    /* 主內容區：top padding 撐過頂部工具列；左右留白避免文字貼邊 */
-    .block-container {
-        padding: 3.5rem 1.4rem 3rem 1.4rem !important;
+    /* 主內容區：上方撐過工具列；左右留白讓文字不貼邊 */
+    section[data-testid="stMain"] .block-container {
+        padding: 3.5rem 1.6rem 3rem 1.6rem !important;
         max-width: 100% !important;
+        box-sizing: border-box !important;
     }
 
-    /* Sidebar：縮小寬度，不佔太多畫面 */
+    /* Sidebar：縮小寬度 */
     [data-testid="stSidebar"] {
         min-width: 65vw !important;
         max-width: 70vw !important;
@@ -86,10 +87,24 @@ hr { margin: 12px 0 !important; opacity: .25; }
         padding: 1rem 0.75rem !important;
     }
 
-    /* 頁面標題（st.header / st.subheader）縮小 */
-    h1, [data-testid="stHeading"] h1 { font-size: 20px !important; line-height: 1.3 !important; }
+    /* 頁面主標題置中、縮小 */
+    h1, [data-testid="stHeading"] h1 {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+        text-align: center !important;
+    }
     h2, [data-testid="stHeading"] h2 { font-size: 17px !important; }
     h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
+
+    /* 手機 Metric 2欄顯示 */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        gap: 0.4rem !important;
+    }
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+        min-width: calc(50% - 0.4rem) !important;
+        flex: 1 1 calc(50% - 0.4rem) !important;
+    }
 
     /* Tabs：emoji + 短文字仍可顯示，不換行截斷 */
     .stTabs [data-baseweb="tab-list"] { gap: 0px !important; }
