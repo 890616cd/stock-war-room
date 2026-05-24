@@ -71,12 +71,14 @@ hr { margin: 12px 0 !important; opacity: .25; }
 /* ── 手機響應式優化（768px 以下）────── */
 @media (max-width: 768px) {
 
-    /* 主內容區：上方撐過工具列；左右留白讓文字不貼邊 */
+    /* 主內容區：左右留白，上方撐過工具列 */
     .block-container,
     .stMainBlockContainer,
-    section[data-testid="stMain"] > div {
-        padding-left: 1.6rem !important;
-        padding-right: 1.6rem !important;
+    [data-testid="stAppViewBlockContainer"],
+    section[data-testid="stMain"] .block-container,
+    section[data-testid="stMain"] > div > div {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
         padding-top: 3.5rem !important;
         box-sizing: border-box !important;
     }
@@ -100,9 +102,14 @@ hr { margin: 12px 0 !important; opacity: .25; }
     h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
 
     /* 登入頁按鈕置中 */
-    [data-testid="stLinkButton"] {
+    [data-testid="stLinkButton"],
+    .stLinkButton {
         display: flex !important;
         justify-content: center !important;
+    }
+    [data-testid="stLinkButton"] a {
+        min-width: 220px !important;
+        text-align: center !important;
     }
 
     /* 手機 Metric 2欄顯示 */
@@ -330,18 +337,21 @@ if not st.session_state.get("_oauth_user"):
 </div>
 """, unsafe_allow_html=True)
 
-    # 置中欄：link_button 保持原生行為，CSS 負責置中
-    _lc, _cc, _rc = st.columns([1, 2, 1])
-    with _cc:
-        if _auth_url:
-            st.link_button("🔵　使用 Google 帳號登入",
-                           _auth_url,
-                           use_container_width=True,
-                           type="primary")
-        else:
-            st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
-        st.divider()
-        st.caption("🔒 登入資訊僅用於識別身份，不儲存密碼。\n\nAPI 金鑰以加密方式存入資料庫，僅你本人可讀取。")
+    if _auth_url:
+        st.link_button("🔵　使用 Google 帳號登入",
+                       _auth_url,
+                       type="primary")
+    else:
+        st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
+    st.markdown("""
+<div style="text-align:center; margin-top:1.5rem;">
+  <hr style="opacity:0.2; margin-bottom:1rem;">
+  <span style="color:#999; font-size:12px; line-height:1.8;">
+    🔒 登入資訊僅用於識別身份，不儲存密碼。<br>
+    API 金鑰以加密方式存入資料庫，僅你本人可讀取。
+  </span>
+</div>
+""", unsafe_allow_html=True)
     st.stop()
 
 # ── 已登入：取得使用者識別資料 ──────────────────────────
