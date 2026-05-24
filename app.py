@@ -150,6 +150,29 @@ hr { margin: 12px 0 !important; opacity: .25; }
 
 /* 表格在小螢幕可橫向滾動 */
 [data-testid="stDataFrame"] { overflow-x: auto !important; }
+
+/* Markdown 表格手機橫向滾動 */
+@media (max-width: 768px) {
+    .stMarkdown table {
+        display: block !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        font-size: 12px !important;
+        width: 100% !important;
+    }
+    .stMarkdown th,
+    .stMarkdown td {
+        padding: 5px 8px !important;
+        white-space: normal !important;
+        min-width: 80px !important;
+        max-width: 160px !important;
+        word-break: break-word !important;
+    }
+    /* 手機：主內容不被 sidebar 箭頭遮到 */
+    section[data-testid="stMain"] > div:first-child {
+        padding-left: 0 !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2008,15 +2031,42 @@ Streamlit Cloud 會**自動偵測並重新部署**，網址不會改變。
     with tab_ai:
         st.subheader("🤖 AI 模型 API 申請指南")
         st.markdown("""
-| 模型 | 申請網址 | 免費額度 | 付費方案 | 特點 |
-|---|---|---|---|---|
-| **Claude Sonnet 4.5** 🟠 | [console.anthropic.com](https://console.anthropic.com) | 新帳號有試用額度 | 依 token 計費 | 分析報告品質最高，推薦首選 |
-| **Claude Haiku 3.5** 🟡 | 同上 | 同上 | 最低成本選項 | 速度快，適合快速摘要 |
-| **GPT-4o** 🟢 | [platform.openai.com](https://platform.openai.com) | 試用額度 $5 | 依 token 計費 | 跨語言理解強，可交叉驗證 |
-| **Gemini 2.0 Flash** 🔴 | [aistudio.google.com](https://aistudio.google.com) | **免費方案** 每天 1500 次 | 付費方案更高頻 | 完全免費可用於測試 |
-
 > 💡 **建議策略**：以 Claude Sonnet 作為主報告模型，加上 Gemini 2.0 Flash（免費）作為交叉驗證。
         """)
+        st.html("""
+<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+<table style="border-collapse:collapse; min-width:520px; font-size:13px; width:100%;">
+<thead><tr style="background:#f0f2f6;">
+  <th style="padding:8px 10px; text-align:left; border:1px solid #ddd;">模型</th>
+  <th style="padding:8px 10px; text-align:left; border:1px solid #ddd;">申請網址</th>
+  <th style="padding:8px 10px; text-align:left; border:1px solid #ddd;">免費額度</th>
+  <th style="padding:8px 10px; text-align:left; border:1px solid #ddd;">付費方案</th>
+  <th style="padding:8px 10px; text-align:left; border:1px solid #ddd;">特點</th>
+</tr></thead>
+<tbody>
+<tr><td style="padding:7px 10px; border:1px solid #eee;"><b>Claude Sonnet 4.5</b> 🟠</td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">新帳號試用額度</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">依 token 計費</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">品質最高，推薦首選</td></tr>
+<tr style="background:#fafafa;"><td style="padding:7px 10px; border:1px solid #eee;"><b>Claude Haiku 3.5</b> 🟡</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">同上</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">同上</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">最低成本</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">速度快，適合摘要</td></tr>
+<tr><td style="padding:7px 10px; border:1px solid #eee;"><b>GPT-4o</b> 🟢</td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><a href="https://platform.openai.com" target="_blank">platform.openai.com</a></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">試用額度 $5</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">依 token 計費</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">跨語言強，可交叉驗證</td></tr>
+<tr style="background:#fafafa;"><td style="padding:7px 10px; border:1px solid #eee;"><b>Gemini 2.0 Flash</b> 🔴</td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>每天 1500 次免費</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">付費更高頻</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">完全免費可測試</td></tr>
+</tbody></table>
+</div>
+""")
 
         st.divider()
         st.markdown("**如何選擇模型組合？**")
@@ -2029,18 +2079,52 @@ Streamlit Cloud 會**自動偵測並重新部署**，網址不會改變。
     # ── Tab 3：財經資料 API 推薦 ────────────────────────
     with tab_data:
         st.subheader("📊 財經資料 API 推薦")
+        st.markdown("### 資料來源優先順序設計")
+        st.html("""
+<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+<table style="border-collapse:collapse; min-width:480px; font-size:13px; width:100%;">
+<thead><tr style="background:#f0f2f6;">
+  <th style="padding:8px 10px; border:1px solid #ddd;">優先級</th>
+  <th style="padding:8px 10px; border:1px solid #ddd;">來源</th>
+  <th style="padding:8px 10px; border:1px solid #ddd;">用途</th>
+  <th style="padding:8px 10px; border:1px solid #ddd;">免費額度</th>
+  <th style="padding:8px 10px; border:1px solid #ddd;">申請</th>
+</tr></thead>
+<tbody>
+<tr><td style="padding:7px 10px; border:1px solid #eee; text-align:center;"><b>P1</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>FMP</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">多年 F P/E、EPS 預估、分析師目標價（最完整）</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">250次/天</td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><a href="https://financialmodelingprep.com" target="_blank">financialmodelingprep.com</a></td></tr>
+<tr style="background:#fafafa;"><td style="padding:7px 10px; border:1px solid #eee; text-align:center;"><b>P2</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>yfinance</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">個股報價、OHLC、52週高低、歷史均線</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">∞ 免費</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">無需申請</td></tr>
+<tr><td style="padding:7px 10px; border:1px solid #eee; text-align:center;"><b>P2</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>Finnhub</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">個股新聞、分析師評等、財務指標</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">60次/分鐘</td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><a href="https://finnhub.io" target="_blank">finnhub.io</a></td></tr>
+<tr style="background:#fafafa;"><td style="padding:7px 10px; border:1px solid #eee; text-align:center;"><b>P3</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>Marketaux</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">三大類別財經新聞（附股票代號標注）</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">100次/天</td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><a href="https://marketaux.com" target="_blank">marketaux.com</a></td></tr>
+<tr><td style="padding:7px 10px; border:1px solid #eee; text-align:center;"><b>P4</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>Alpha Vantage</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">ForwardPE 備援、總覽資料</td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>25次/天</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><a href="https://alphavantage.co" target="_blank">alphavantage.co</a></td></tr>
+<tr style="background:#fafafa;"><td style="padding:7px 10px; border:1px solid #eee; text-align:center;"><b>保底</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;"><b>RSS 免費源</b></td>
+    <td style="padding:7px 10px; border:1px solid #eee;">Reuters / BBC / TechCrunch 等</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">∞ 免費</td>
+    <td style="padding:7px 10px; border:1px solid #eee;">無需申請</td></tr>
+</tbody></table>
+</div>
+""")
         st.markdown("""
-### 資料來源優先順序設計
-
-| 優先級 | 來源 | 用途 | 免費額度 | 申請 |
-|---|---|---|---|---|
-| **P1** | **FMP** | 多年 F P/E、EPS 預估、分析師目標價（最完整） | 250次/天 | [financialmodelingprep.com](https://financialmodelingprep.com) |
-| **P2** | **yfinance** | 個股報價、OHLC、52週高低、歷史均線（完全免費） | ∞ 免費 | 無需申請（Yahoo Finance） |
-| **P2** | **Finnhub** | 個股新聞、分析師買/持/賣推薦、財務指標 | 60次/分鐘 | [finnhub.io](https://finnhub.io) |
-| **P3** | **Marketaux** | 三大類別財經新聞（附股票代號標注） | 100次/天 | [marketaux.com](https://marketaux.com) |
-| **P4** | **Alpha Vantage** | ForwardPE 備援、總覽資料 | **25次/天** | [alphavantage.co](https://alphavantage.co) |
-| **保底** | **RSS 免費源** | Reuters / BBC / TechCrunch 等，無需 Key | ∞ 免費 | 無需申請 |
-
 ---
 
 ### 各來源強項說明
