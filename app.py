@@ -331,47 +331,6 @@ if "code" in _qp and not st.session_state.get("_oauth_user"):
 if not st.session_state.get("_oauth_user"):
     _auth_url = _build_google_auth_url()
 
-    # ── 內建瀏覽器偵測（LINE / Facebook / Instagram 等）──────
-    # LINE 官方支援 ?openExternalBrowser=1 強制跳外部瀏覽器
-    import streamlit.components.v1 as _components
-    _components.html("""
-<script>
-(function(){
-  var ua = navigator.userAgent || '';
-  var isLine = /Line\//i.test(ua);
-  var isFb   = /FBAN|FBAV/i.test(ua);
-  var isIg   = /Instagram/i.test(ua);
-  var isInApp = isLine || isFb || isIg;
-  if (!isInApp) return;
-
-  // LINE：附加官方參數讓 LINE 自動跳外部瀏覽器
-  if (isLine) {
-    try {
-      var url = window.parent.location.href;
-      if (url.indexOf('openExternalBrowser') === -1) {
-        window.parent.location.href = url +
-          (url.indexOf('?') === -1 ? '?' : '&') + 'openExternalBrowser=1';
-      }
-    } catch(e) {}
-  }
-
-  // 其他內建瀏覽器：顯示警告提示
-  var div = document.createElement('div');
-  div.style.cssText = [
-    'position:fixed','top:0','left:0','right:0',
-    'background:#fff3cd','border-bottom:2px solid #ffc107',
-    'padding:12px 16px','font-family:sans-serif',
-    'font-size:14px','line-height:1.6','z-index:9999',
-    'text-align:center'
-  ].join(';');
-  div.innerHTML = '⚠️ <strong>請用外部瀏覽器開啟此頁面</strong><br>' +
-    'Google 登入不支援 LINE / Facebook 內建瀏覽器。<br>' +
-    '請點右上角 <strong>「⋯」→ 在瀏覽器中開啟</strong>（Safari / Chrome）';
-  document.body.appendChild(div);
-})();
-</script>
-""", height=0)
-
     st.markdown("""
 <div style="text-align:center; padding: 3rem 1rem 1rem;">
   <div style="font-size:64px">⚔️</div>
@@ -387,8 +346,27 @@ if not st.session_state.get("_oauth_user"):
                        type="primary")
     else:
         st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
+
+    # ── LINE / 社群 App 內建瀏覽器提示 ───────────────────────
+    # LINE 官方支援 ?openExternalBrowser=1：使用者點擊後 LINE 自動用外部瀏覽器開啟
+    _ext_url = _APP_URL + "?openExternalBrowser=1"
+    st.markdown(f"""
+<div style="text-align:center; margin-top:1.2rem; padding:0.75rem 1rem;
+     background:#fff8e1; border:1px solid #ffe082; border-radius:10px;
+     font-size:13px; line-height:1.8; color:#555;">
+  📱 <strong>透過 LINE 或社群 App 點入？</strong><br>
+  Google 登入須在外部瀏覽器執行。<br>
+  請點下方連結，LINE 將自動改用外部瀏覽器開啟：<br>
+  <a href="{_ext_url}"
+     style="color:#1a73e8; font-weight:600; text-decoration:none;">
+    🌐 點此用外部瀏覽器開啟
+  </a><br>
+  <span style="font-size:11px; color:#888;">（或點右上角 ⋯ → 在瀏覽器中開啟）</span>
+</div>
+""", unsafe_allow_html=True)
+
     st.markdown("""
-<div style="text-align:center; margin-top:1.5rem;">
+<div style="text-align:center; margin-top:1.2rem;">
   <hr style="opacity:0.2; margin-bottom:1rem;">
   <span style="color:#999; font-size:12px; line-height:1.8;">
     🔒 登入資訊僅用於識別身份，不儲存密碼。<br>
