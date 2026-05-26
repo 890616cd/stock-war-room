@@ -616,11 +616,16 @@ def wl_total(data: dict) -> int:
 #  分析執行（串接五個模組）
 # ════════════════════════════════════════════════════════
 
-def run_full_analysis():
+def run_full_analysis(prog=None):
     """
     依序執行模組一 → 模組二 → 模組三。
-    進度更新寫入 session_state.run_step。
+    進度更新寫入 session_state.run_step；若傳入 prog 則同步更新 Streamlit 進度條。
     """
+    def _upd(pct: int, txt: str):
+        st.session_state["run_step"] = txt
+        if prog is not None:
+            prog.progress(pct, text=txt)
+
     try:
         from module1_data_fetcher import run_data_fetcher
         from module2_discipline_warning import (
@@ -630,12 +635,12 @@ def run_full_analysis():
         from module3_llm_summarizer import run_llm_summarizer
 
         # ── Module 1 ──
-        st.session_state["run_step"] = "📡 正在抓取大盤指數 / VIX / US10Y / DXY..."
+        _upd(5, "📡 正在抓取大盤指數 / VIX / US10Y / DXY 及三大類別新聞...")
         market_data = run_data_fetcher()
         st.session_state["market_data"] = market_data
 
         # ── Module 2 ──
-        st.session_state["run_step"] = "🔒 執行紀律警告協議（硬邏輯評估中）..."
+        _upd(65, "🔒 執行紀律警告協議（硬邏輯評估中）...")
         snapshot = MarketSnapshot(
             vix               = market_data.vix,
             us10y             = market_data.us10y,
@@ -658,9 +663,10 @@ def run_full_analysis():
             sys_p  = build_system_prompt(assessment, market_data, custom_p)
             user_p = build_user_prompt(market_data)
             multi: dict = {}
-            for mid in sel_models:
+            for i, mid in enumerate(sel_models):
                 lbl = MODEL_CATALOG.get(mid, {}).get("label", mid)
-                st.session_state["run_step"] = f"🤖 {lbl} 生成市場情緒分析..."
+                pct = 72 + int(i / max(len(sel_models), 1) * 23)
+                _upd(pct, f"🤖 {lbl} 生成市場情緒分析...")
                 res = call_model(mid, sys_p, user_p)
                 if not res.get("error"):
                     res["report"] = format_final_report(res["text"], assessment, market_data)
@@ -675,7 +681,7 @@ def run_full_analysis():
             st.session_state["multi_reports"]   = {}
 
         st.session_state["last_run"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state["run_step"] = "✅ 分析完成"
+        _upd(100, "✅ 分析完成")
 
     except Exception as e:
         st.session_state["run_step"] = f"❌ 執行失敗：{e}"
@@ -738,6 +744,7 @@ def render_stock_detail(symbol: str, name: str):
 
     # ── K 線圖（標題 + 股價之後即呈現）──────────────────────
     st.markdown("#### 📈 技術分析圖表（近一年日K）")
+    st.caption("📡 資料來源：Yahoo Finance（yfinance）")
     with st.spinner(f"正在載入 {stock.symbol} 圖表數據..."):
         df  = fetch_chart_data(stock.symbol, period="1y")
         fig = build_stock_chart(df, stock.symbol, stock.name)
@@ -760,6 +767,7 @@ def render_stock_detail(symbol: str, name: str):
     #  技術分析面
     # ════════════════════════════════════════════════════
     st.markdown("#### 📊 技術分析面")
+    st.caption("📡 資料來源：Yahoo Finance（yfinance）")
 
     def _fmt_vol(v):
         if not v: return "N/A"
@@ -822,6 +830,7 @@ def render_stock_detail(symbol: str, name: str):
     #  估值分析面
     # ════════════════════════════════════════════════════
     st.markdown("#### 💹 估值分析面")
+    st.caption("📡 資料來源：FMP（多年 EPS / F P/E / 成長率預估，優先）· Yahoo Finance（備援）")
 
     def _fmt_pct(v):
         if v is None: return "N/A"
@@ -895,6 +904,7 @@ def render_stock_detail(symbol: str, name: str):
     if stock.analyst_count:
         analyst_label += f"　（共 {stock.analyst_count} 位分析師）"
     st.markdown(f"**{analyst_label}**")
+    st.caption("📡 資料來源：Yahoo Finance（yfinance）")
 
     has_target = any([stock.target_low, stock.target_median,
                       stock.target_mean, stock.target_high])
@@ -971,6 +981,8 @@ def render_stock_detail(symbol: str, name: str):
         ):
             import requests as _req, feedparser as _fp, re, email.utils
             from datetime import timedelta
+
+            _sprog = st.progress(0, text=f"⏳ 搜尋 {stock.symbol} 近期新聞，預計需要 20–45 秒...")
 
             # ── Step 1：抓取個股近 3 日新聞 ────────────
             fetched_news = []
@@ -1094,6 +1106,7 @@ def render_stock_detail(symbol: str, name: str):
 
             fetched_news = fetched_news[:5]
             st.session_state[news_key_s] = fetched_news
+            _sprog.progress(40, text="📊 新聞蒐集完成，正在準備分析數據...")
 
             # ── Step 2：組合 LLM Prompt ─────────────────
 
@@ -1218,11 +1231,13 @@ def render_stock_detail(symbol: str, name: str):
                 + (f"\n\n[使用者偏好]\n{custom_p}" if custom_p.strip() else "")
             )
             multi_res: dict = {}
-            for mid in sel:
+            for i, mid in enumerate(sel):
                 lbl = MODEL_CATALOG.get(mid, {}).get("label", mid)
-                with st.spinner(f"🤖 {lbl} 正在分析 {stock.symbol}..."):
-                    res = call_model(mid, sys_p_stock, user_prompt)
-                    multi_res[mid] = res
+                pct = 55 + int(i / max(len(sel), 1) * 40)
+                _sprog.progress(pct, text=f"🤖 {lbl} 正在分析 {stock.symbol}...")
+                res = call_model(mid, sys_p_stock, user_prompt)
+                multi_res[mid] = res
+            _sprog.progress(100, text="✅ 完成")
             st.session_state[tactic_key] = multi_res
             st.rerun()
 
@@ -1409,18 +1424,8 @@ elif page == "🏠 戰情室主控台":
             use_container_width = True,
             type      = "primary",
         ):
-            with st.spinner("正在執行…"):
-                prog = st.progress(0, text="初始化...")
-                steps = [
-                    (20, "📡 抓取大盤 / VIX / 總經指標..."),
-                    (48, "📰 抓取三大類別新聞（保底各 3 則）..."),
-                    (68, "🔒 紀律警告協議（硬邏輯評估）..."),
-                    (88, "🤖 Claude 生成市場情緒分析..."),
-                ]
-                for pct, txt in steps:
-                    prog.progress(pct, text=txt)
-                run_full_analysis()
-                prog.progress(100, text="✅ 完成")
+            prog = st.progress(0, text="⏳ 初始化中，預計需要 30–90 秒（依模型與網路速度）...")
+            run_full_analysis(prog=prog)
             st.rerun()
 
     with col_hint:
