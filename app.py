@@ -2234,6 +2234,26 @@ elif page == "📝 版本更新紀錄":
     st.divider()
 
     _CHANGELOG = [
+        ("v1.25", "OAuth 安全強化", [
+            ("新增", [
+                "state 參數（CSRF 防護）：每次建立 Google 授權 URL 時產生隨機 state，存入 Session；callback 進來時比對 state，不符即拒絕，防止跨站請求偽造攻擊。",
+                "state 用完即清除：登入成功後自動從 Session 移除 state，避免重複使用。",
+            ]),
+            ("說明", [
+                "Google OAuth 專案檢查中的「採用安全的流程」警告，根本原因為缺少 state 參數；本版修正後符合 Google 對 Web 應用程式的安全規範，警告預計 1–3 天內自動消除。",
+                "PKCE（程式碼交換驗證金鑰）經評估不適用：Streamlit WebSocket 重連機制導致 code_verifier 在 OAuth redirect 後遺失，造成登入失敗；考量本系統為具備 client_secret 的伺服器端 Web 應用，state + client_secret 已達 Google 要求的安全等級，故不實作 PKCE。",
+            ]),
+        ]),
+        ("v1.24", "使用者體驗優化", [
+            ("新增", [
+                "個股頁面資料來源標籤：技術分析圖表、技術分析面、估值分析面、分析師目標價各區塊標題下方加入灰色小字，標示數據引用來源（Yahoo Finance / FMP）。",
+                "分析等待時間提示：主控台「啟動完整分析」與個股「生成完整分析」按鈕點擊後，進度條上方顯示預計等待時間（主控台 30–90 秒、個股 20–45 秒），避免使用者誤以為當機。",
+            ]),
+            ("修正", [
+                "主控台進度條假進度問題：原本所有進度值在 run_full_analysis() 執行前一次性設完，視覺上無意義；改為將 prog 物件傳入函式，在數據抓取（5%）、紀律評估（65%）、各模型呼叫（72–95%）等實際步驟中即時更新，進度條現在反映真實執行狀態。",
+                "個股分析進度條：原本只有 spinner 無進度顯示；改為新聞搜尋（0%）→ 完成（40%）→ AI 呼叫（55–95%）→ 完成（100%）的真實進度更新。",
+            ]),
+        ]),
         ("v1.23", "LINE 外部瀏覽器相容", [
             ("修正", [
                 "LINE / 社群 App 內建瀏覽器 Google 登入被封鎖：Google OAuth 拒絕從 LINE、Facebook、Instagram 等 App 內建瀏覽器發起的授權請求，本版整合進登入按鈕本身，無需額外說明。",
@@ -2314,7 +2334,7 @@ elif page == "📝 版本更新紀錄":
     ]
 
     for ver, title, sections in _CHANGELOG:
-        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.23")):
+        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.25")):
             for sec_title, items in sections:
                 st.markdown(f"**{sec_title}**")
                 for item in items:
