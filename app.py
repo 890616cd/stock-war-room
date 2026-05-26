@@ -335,19 +335,23 @@ elif "openExternalBrowser" in _qp and not st.session_state.get("_oauth_user"):
     import json as _json
     import streamlit.components.v1 as _cmp
     _auth_url_ext = _build_google_auth_url()
+
     st.markdown("""
-<div style="text-align:center; padding: 4rem 1rem 2rem;">
+<div style="text-align:center; padding: 3rem 1rem 1.5rem;">
   <div style="font-size:56px">⚔️</div>
-  <p style="color:#555; margin-top:1rem; font-size:15px;">正在開啟 Google 登入…</p>
+  <h1 style="font-size:22px; font-weight:700; margin:0.8rem 0 0.3rem;">美股投資戰情室</h1>
+  <p style="color:#888; font-size:13px;">已切換至外部瀏覽器，正在開啟 Google 登入…</p>
 </div>""", unsafe_allow_html=True)
+
     if _auth_url_ext:
-        # 嘗試透過 component iframe 跳轉主頁（Streamlit allow-same-origin 允許）
+        # 嘗試透過 component iframe 自動跳轉（Streamlit allow-same-origin）
         _cmp.html(
             f"<script>try{{window.parent.location.href={_json.dumps(_auth_url_ext)};}}catch(e){{}}</script>",
             height=0,
         )
-        # 備援：若 JS 被擋住，顯示手動按鈕讓使用者繼續
-        st.link_button("🔵　繼續 Google 登入", _auth_url_ext,
+        # 提示框：自動跳轉若因瀏覽器環境被擋，請手動點擊
+        st.info("✅ 已切換至外部瀏覽器。若頁面未自動跳轉，請點下方按鈕完成登入。", icon="📱")
+        st.link_button("🔵　使用 Google 帳號登入", _auth_url_ext,
                        use_container_width=True, type="primary")
     st.stop()
 
@@ -363,11 +367,25 @@ if not st.session_state.get("_oauth_user"):
 </div>
 """, unsafe_allow_html=True)
 
-    # 按鈕指向 app?openExternalBrowser=1
-    # LINE 內建瀏覽器：LINE 攔截此參數，自動用外部瀏覽器重開 → 外部瀏覽器自動跳 Google OAuth
-    # 一般瀏覽器：載入中繼頁後 JS 自動跳 Google OAuth（備援顯示手動按鈕）
+    # 按鈕預設指向中繼頁（LINE 專用）
+    # JS 偵測：若為一般外部瀏覽器（非 LINE/FB/IG），直接改為 Google OAuth URL，跳過中繼
     _ext_trigger = _APP_URL + "?openExternalBrowser=1"
     if _auth_url:
+        import json as _json
+        import streamlit.components.v1 as _cmp
+        # 智慧偵測：非內建瀏覽器直接走 OAuth，不經過中繼頁
+        _cmp.html(f"""<script>
+(function() {{
+  var ua = navigator.userAgent || '';
+  var isInApp = /Line\/|FBAN|FBAV|Instagram/i.test(ua);
+  if (isInApp) return;  // 內建瀏覽器：保留中繼 URL，讓 LINE 用 openExternalBrowser 處理
+  // 一般瀏覽器：直接指向 Google OAuth，省去中繼步驟
+  try {{
+    var btn = window.parent.document.querySelector('[data-testid="stLinkButton"] a');
+    if (btn) btn.href = {_json.dumps(_auth_url)};
+  }} catch(e) {{}}
+}})();
+</script>""", height=0)
         st.link_button("🔵　使用 Google 帳號登入",
                        _ext_trigger,
                        use_container_width=True,
@@ -1261,7 +1279,7 @@ with st.sidebar:
 
     page = st.radio(
         "導覽",
-        ["🏠 戰情室主控台", "📋 自選股管理", "⚙️ 模型與偏好", "📚 教學 & API設定"],
+        ["🏠 戰情室主控台", "📋 自選股管理", "⚙️ 模型與投資偏好", "📚 教學 & API設定", "📝 版本更新紀錄"],
         label_visibility = "collapsed",
         key = "nav_page",
     )
@@ -1565,11 +1583,11 @@ elif page == "📋 自選股管理":
 
 
 # ════════════════════════════════════════════════════════
-#  Page 3：模型與偏好設定
+#  Page 3：模型與投資偏好設定
 # ════════════════════════════════════════════════════════
 
-elif page == "⚙️ 模型與偏好":
-    st.header("⚙️ 模型與偏好設定")
+elif page == "⚙️ 模型與投資偏好":
+    st.header("⚙️ 模型與投資偏好設定")
 
     from module3_llm_summarizer import MODEL_CATALOG, detect_provider_from_model_id
 
@@ -2198,3 +2216,101 @@ Streamlit Cloud 會**自動偵測並重新部署**，網址不會改變。
 
     # ── Tab 3：財經資料 API（已是 tab_data，無需變動）────
     # （系統資訊 Tab 已移除，使用者不需要看到）
+
+
+# ════════════════════════════════════════════════════════
+#  Page 5：版本更新紀錄
+# ════════════════════════════════════════════════════════
+
+elif page == "📝 版本更新紀錄":
+    st.header("📝 版本更新紀錄")
+    st.caption("記錄每次迭代的新增功能、修正與調整，由最新版本往前排列。")
+    st.divider()
+
+    _CHANGELOG = [
+        ("v1.23", "LINE 外部瀏覽器相容", [
+            ("修正", [
+                "LINE / 社群 App 內建瀏覽器 Google 登入被封鎖：Google OAuth 拒絕從 LINE、Facebook、Instagram 等 App 內建瀏覽器發起的授權請求，本版整合進登入按鈕本身，無需額外說明。",
+            ]),
+            ("調整", [
+                "登入按鈕流程重設計：按鈕目標 URL 改為 app?openExternalBrowser=1，利用 LINE 官方參數讓 LINE App 自動以外部瀏覽器（Safari / Chrome）重開頁面；外部瀏覽器載入後透過中繼頁自動跳轉至 Google OAuth。",
+                "智慧瀏覽器偵測：JS 自動判斷是否為 LINE/FB 等內建瀏覽器；一般瀏覽器（電腦、手機外部瀏覽器）直接走 Google OAuth，不經過中繼頁，流程無感。",
+                "備援機制：若瀏覽器環境限制 JavaScript 自動跳轉，中繼頁顯示提示框與手動按鈕確保流程不中斷。",
+                "移除提示框：刪除前版登入頁下方的 LINE 用戶提示區塊，版面更簡潔。",
+            ]),
+        ]),
+        ("v1.22", "介面優化 & 總經指標強化", [
+            ("修正", [
+                "自選股按鈕排版：個股名稱按鈕與刪除（✕）按鈕現在固定同行顯示，行動裝置不再換行。",
+                "登入按鈕置中：以更高特異性的 CSS 選擇器修正 st.link_button 在手機上偏左的問題。",
+                "US10Y 數據遺失：原用 period=\"1d\", interval=\"5m\" 在非交易時段（債券市場休市、週末）回傳空值；改為 period=\"5d\" 優先、period=\"1mo\" 保底的雙層備援機制，確保永遠取得最後一筆有效收盤價。",
+                "Expander 內欄位換行：對 Expander 內的水平 Block 加入 flex-wrap: nowrap CSS，防止行動裝置上欄位意外折行。",
+            ]),
+            ("新增功能", [
+                "道瓊工業指數（DJIA）：戰情室主控台指標卡片由 5 格擴充為滿版 6 格，新增道瓊指數即時報價與漲跌幅。",
+                "指標中文標籤：六個風險指標卡片全數附上中文說明（恐慌指數、美債10年、美元指數、標普500、納斯達克、道瓊指數）。",
+            ]),
+            ("調整", [
+                "側欄導覽標籤：「📚 教學指南」改為「📚 教學 & API設定」，去除換行問題；「🤖 模型與偏好」改為「⚙️ 模型與投資偏好」，統一圖示視覺大小，修正對齊錯位。",
+            ]),
+        ]),
+        ("v1.21", "使用者帳號系統", [
+            ("新增功能", [
+                "Google 帳號登入：首頁新增 Google OAuth 登入入口，授權後自動識別使用者身份。",
+                "雲端資料同步：自選股清單、AI 模型偏好、投資策略偏好設定自動存入 Supabase 雲端資料庫，跨裝置、跨瀏覽器皆可讀取。",
+                "API 金鑰加密儲存：使用者的各平台 API 金鑰以 Fernet 對稱加密後存入資料庫，僅本人可解密讀取，不以明文保存。",
+                "登出功能：側欄新增登出按鈕，清除本地 Session 資料。",
+                "手動同步按鈕：側欄新增「☁️ 同步」按鈕，可隨時手動將當前設定推送至雲端。",
+                "新用戶自動建檔：首次登入自動在 Supabase 建立空白使用者記錄，無需手動初始化。",
+                "跨 Session API 金鑰隔離：修正雲端環境中多用戶共用同一 process 導致 API 金鑰互相污染的安全問題，每位使用者的金鑰完全隔離於各自的 Session State。",
+            ]),
+        ]),
+        ("v1.16 – v1.20", "雲端部署 & 多用戶架構", [
+            ("新增功能", [
+                "v1.16：純網頁架構重構，手機響應式 CSS（768px 斷點），首次訪問導引彈窗。",
+                "v1.17：多使用者雲端隔離架構，API 金鑰改存 session_keys，隱藏右上角工具列。",
+                "v1.18：動態供應商偵測（detect_provider_from_key），單一智慧金鑰輸入欄。",
+                "v1.19：最新模型清單更新，模型選擇 UI 重構為最新版 / 前代穩定版兩欄。",
+                "v1.20：跨 Session API 金鑰隔離安全修復，移除 os.environ 寫入，確保金鑰物理隔離。",
+            ]),
+        ]),
+        ("v1.11 – v1.15", "個股分析強化", [
+            ("新增功能", [
+                "v1.11：個股頁面獨立化，快取機制與重新整理按鈕。",
+                "v1.12：技術分析面板，OHLC、Beta、成交量、52週區間雙欄表格。",
+                "v1.13：接入 FMP 多年預估（2026/2027/2028 EPS / F P/E / F P/S），幣別合理性檢查。",
+                "v1.14：接入 Finnhub 分析師推薦分布、目標價、個股新聞精準搜尋。",
+                "v1.15：K 線圖優化，Categorical x 軸跳過週末空缺，y 軸可拖拽縮放。",
+            ]),
+        ]),
+        ("v1.1 – v1.10", "核心模組建構", [
+            ("新增功能", [
+                "v1.1：數據抓取引擎（yfinance），三大指數 / VIX / US10Y / DXY / 個股，新聞引擎。",
+                "v1.2：LLM 戰情摘要（module3），System Prompt 警戒等級 Persona 切換。",
+                "v1.3：自選股系統（watchlist.json），八板塊分類，CLI 管理介面。",
+                "v1.4：Streamlit UI 主控台，三頁面架構，警戒徽章，進度條。",
+                "v1.5：Windows 啟動腳本（WarRoom_Launch.bat）。",
+                "v1.6：估值指標（F P/E / P/S / 3年均值），新聞標題可點擊連結。",
+                "v1.7：個股詳細頁面，Plotly 五子圖（K線 / 成交量 / MACD / KDJ / RSI）。",
+                "v1.8：Marketaux 財經新聞 API 接入，三層保障來源。",
+                "v1.9：版面大改版，報告結構重整。",
+                "v1.10：個股新聞分析整合，生成完整分析一次輸出戰術建議 + 新聞影響。",
+            ]),
+        ]),
+        ("v1.0", "架構設計與核心三模組", [
+            ("奠基", [
+                "確立「手動觸發、單次執行、嚴禁自動輪詢」核心原則。",
+                "建立三模組職責分離架構：數據抓取 / 硬邏輯判斷 / LLM 語意彙整。",
+                "設計資料流架構（Manual Trigger → M1 → M2 → M3）。",
+                "實作 module2_discipline_warning.py：VIX / US10Y / CTA 硬邏輯閾值、FOMO 攔截、AlertLevel 四級警戒。",
+            ]),
+        ]),
+    ]
+
+    for ver, title, sections in _CHANGELOG:
+        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.23")):
+            for sec_title, items in sections:
+                st.markdown(f"**{sec_title}**")
+                for item in items:
+                    st.markdown(f"- {item}")
+                st.markdown("")
