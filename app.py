@@ -255,8 +255,6 @@ if "_go_to_page" in st.session_state:
 # ════════════════════════════════════════════════════════
 
 import urllib.parse
-import hashlib as _hashlib
-import base64 as _base64
 import secrets as _secrets
 import requests as _http
 
@@ -280,44 +278,27 @@ def _google_client_secret() -> str:
         return ""
 
 
-def _generate_pkce() -> tuple[str, str]:
-    """
-    產生 PKCE code_verifier 與 code_challenge（S256 方法）。
-    code_verifier : 隨機高熵字串，換 token 時附上
-    code_challenge: SHA-256(code_verifier) 的 Base64URL 編碼，放進授權 URL
-    """
-    verifier  = _secrets.token_urlsafe(43)          # 43 bytes ≈ 344 bits
-    digest    = _hashlib.sha256(verifier.encode()).digest()
-    challenge = _base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-    return verifier, challenge
-
-
 def _build_google_auth_url() -> str:
     cid = _google_client_id()
     if not cid:
         return ""
-    # CSRF 防護：隨機 state
+    # CSRF 防護：隨機 state，存入 session 供 callback 驗證
     state = _secrets.token_urlsafe(16)
     st.session_state["_oauth_state"] = state
-    # PKCE：產生 verifier（存 session）和 challenge（放 URL）
-    verifier, challenge = _generate_pkce()
-    st.session_state["_oauth_code_verifier"] = verifier
     params = {
-        "client_id":             cid,
-        "redirect_uri":          _APP_URL,
-        "response_type":         "code",
-        "scope":                 "openid email profile",
-        "access_type":           "online",
-        "prompt":                "select_account",
-        "state":                 state,
-        "code_challenge":        challenge,
-        "code_challenge_method": "S256",
+        "client_id":     cid,
+        "redirect_uri":  _APP_URL,
+        "response_type": "code",
+        "scope":         "openid email profile",
+        "access_type":   "online",
+        "prompt":        "select_account",
+        "state":         state,
     }
     return _GOOGLE_AUTH + "?" + urllib.parse.urlencode(params)
 
 
 def _exchange_google_code(code: str) -> dict:
-    """用 authorization code 換取使用者資訊（附 PKCE code_verifier）"""
+    """用 authorization code 換取使用者資訊"""
     try:
         token_resp = _http.post(_GOOGLE_TOKEN, data={
             "client_id":     _google_client_id(),
@@ -325,8 +306,6 @@ def _exchange_google_code(code: str) -> dict:
             "code":          code,
             "grant_type":    "authorization_code",
             "redirect_uri":  _APP_URL,
-            # PKCE：附上 verifier，Google 會驗證與 challenge 相符才核發 token
-            "code_verifier": st.session_state.pop("_oauth_code_verifier", ""),
         }, timeout=10)
         token_data = token_resp.json()
         if "access_token" not in token_data:
