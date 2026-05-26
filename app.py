@@ -331,6 +331,47 @@ if "code" in _qp and not st.session_state.get("_oauth_user"):
 if not st.session_state.get("_oauth_user"):
     _auth_url = _build_google_auth_url()
 
+    # ── 內建瀏覽器偵測（LINE / Facebook / Instagram 等）──────
+    # LINE 官方支援 ?openExternalBrowser=1 強制跳外部瀏覽器
+    import streamlit.components.v1 as _components
+    _components.html("""
+<script>
+(function(){
+  var ua = navigator.userAgent || '';
+  var isLine = /Line\//i.test(ua);
+  var isFb   = /FBAN|FBAV/i.test(ua);
+  var isIg   = /Instagram/i.test(ua);
+  var isInApp = isLine || isFb || isIg;
+  if (!isInApp) return;
+
+  // LINE：附加官方參數讓 LINE 自動跳外部瀏覽器
+  if (isLine) {
+    try {
+      var url = window.parent.location.href;
+      if (url.indexOf('openExternalBrowser') === -1) {
+        window.parent.location.href = url +
+          (url.indexOf('?') === -1 ? '?' : '&') + 'openExternalBrowser=1';
+      }
+    } catch(e) {}
+  }
+
+  // 其他內建瀏覽器：顯示警告提示
+  var div = document.createElement('div');
+  div.style.cssText = [
+    'position:fixed','top:0','left:0','right:0',
+    'background:#fff3cd','border-bottom:2px solid #ffc107',
+    'padding:12px 16px','font-family:sans-serif',
+    'font-size:14px','line-height:1.6','z-index:9999',
+    'text-align:center'
+  ].join(';');
+  div.innerHTML = '⚠️ <strong>請用外部瀏覽器開啟此頁面</strong><br>' +
+    'Google 登入不支援 LINE / Facebook 內建瀏覽器。<br>' +
+    '請點右上角 <strong>「⋯」→ 在瀏覽器中開啟</strong>（Safari / Chrome）';
+  document.body.appendChild(div);
+})();
+</script>
+""", height=0)
+
     st.markdown("""
 <div style="text-align:center; padding: 3rem 1rem 1rem;">
   <div style="font-size:64px">⚔️</div>
@@ -1342,28 +1383,28 @@ elif page == "🏠 戰情室主控台":
         st.markdown('<div class="alert-green">── 等待首次分析</div>', unsafe_allow_html=True)
         st.markdown("")
 
-    # ── 總經指標（手機 2+3 欄排列）────────────────────────
+    # ── 總經指標（3+3 滿版排列）──────────────────────────
     md = st.session_state.get("market_data")
     c1, c2, c3 = st.columns(3)
-    c4, c5, _  = st.columns(3)
-
-    def _mc(col, label, val, delta=None, color=None):
-        col.metric(label=label, value=val, delta=delta)
+    c4, c5, c6 = st.columns(3)
 
     if md:
-        sp_chg = round((md.sp500 - md.sp500_prev) / md.sp500_prev * 100, 2) if md.sp500_prev else 0
-        nq_chg = round((md.nasdaq - md.nasdaq_prev) / md.nasdaq_prev * 100, 2) if md.nasdaq_prev else 0
-        c1.metric("VIX",    f"{md.vix:.2f}")
-        c2.metric("US10Y",  f"{md.us10y:.3f}%")
-        c3.metric("DXY",    f"{md.dxy:.2f}")
-        c4.metric("S&P 500", f"{md.sp500:,.0f}", f"{sp_chg:+.2f}%")
-        c5.metric("NASDAQ",  f"{md.nasdaq:,.0f}", f"{nq_chg:+.2f}%")
+        sp_chg   = round((md.sp500  - md.sp500_prev)  / md.sp500_prev  * 100, 2) if md.sp500_prev  else 0
+        nq_chg   = round((md.nasdaq - md.nasdaq_prev) / md.nasdaq_prev * 100, 2) if md.nasdaq_prev else 0
+        dj_chg   = round((md.djia   - md.djia_prev)   / md.djia_prev   * 100, 2) if md.djia_prev   else 0
+        c1.metric("VIX　恐慌指數",    f"{md.vix:.2f}")
+        c2.metric("US10Y　美債10年",  f"{md.us10y:.3f}%")
+        c3.metric("DXY　美元指數",    f"{md.dxy:.2f}")
+        c4.metric("S&P 500　標普500", f"{md.sp500:,.0f}",  f"{sp_chg:+.2f}%")
+        c5.metric("NASDAQ　納斯達克", f"{md.nasdaq:,.0f}", f"{nq_chg:+.2f}%")
+        c6.metric("DJIA　道瓊指數",   f"{md.djia:,.0f}",   f"{dj_chg:+.2f}%")
     else:
-        c1.metric("VIX",    "──")
-        c2.metric("US10Y",  "──")
-        c3.metric("DXY",    "──")
-        c4.metric("S&P 500","──")
-        c5.metric("NASDAQ", "──")
+        c1.metric("VIX　恐慌指數",    "──")
+        c2.metric("US10Y　美債10年",  "──")
+        c3.metric("DXY　美元指數",    "──")
+        c4.metric("S&P 500　標普500", "──")
+        c5.metric("NASDAQ　納斯達克", "──")
+        c6.metric("DJIA　道瓊指數",   "──")
 
     st.divider()
 

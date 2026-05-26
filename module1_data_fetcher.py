@@ -175,6 +175,14 @@ class FullMarketData:
         return self.indices["NASDAQ"].prev_close if "NASDAQ" in self.indices else 0.0
 
     @property
+    def djia(self) -> float:
+        return self.indices["DJIA"].price if "DJIA" in self.indices else 0.0
+
+    @property
+    def djia_prev(self) -> float:
+        return self.indices["DJIA"].prev_close if "DJIA" in self.indices else 0.0
+
+    @property
     def total_watchlist_count(self) -> int:
         return sum(len(v) for v in self.watchlist.values())
 
@@ -566,15 +574,18 @@ def fetch_macro_indicators() -> tuple[float, float, float]:
     print("  正在抓取總經指標（VIX / US10Y / DXY）...")
     results = {}
     for name, symbol in MACRO_INDICATORS.items():
-        try:
-            t    = yf.Ticker(symbol)
-            hist = t.history(period="1d", interval="5m")
-            val  = float(hist["Close"].dropna().iloc[-1]) if not hist.empty else 0.0
-            results[name] = round(val, 3)
-            print(f"    {name:<8}  {val:.3f}")
-        except Exception as e:
-            print(f"    [警告] {name} 抓取失敗：{e}")
-            results[name] = 0.0
+        val = 0.0
+        for period in ["5d", "1mo"]:          # 5d 優先；若空再用 1mo
+            try:
+                t    = yf.Ticker(symbol)
+                hist = t.history(period=period)
+                if not hist.empty:
+                    val = float(hist["Close"].dropna().iloc[-1])
+                    break
+            except Exception:
+                pass
+        results[name] = round(val, 3)
+        print(f"    {name:<8}  {val:.3f}")
     return results.get("VIX", 0.0), results.get("US10Y", 0.0), results.get("DXY", 0.0)
 
 
