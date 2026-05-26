@@ -327,30 +327,18 @@ if "code" in _qp and not st.session_state.get("_oauth_user"):
         st.query_params.clear()
         st.stop()
 
-# ── LINE 外部瀏覽器中繼站：自動跳轉到 Google OAuth ────────
-# 流程：LINE 內點登入按鈕 → app?openExternalBrowser=1
-#       → LINE 偵測參數自動切 Safari/Chrome
-#       → 外部瀏覽器載入此中繼頁 → 自動跳 Google OAuth
+# ── LINE 外部瀏覽器中繼站 ────────────────────────────────
+# LINE 在外部瀏覽器開啟此 URL 後，直接顯示登入按鈕即可
+# （此時已是 Safari/Chrome，Google OAuth 可正常執行）
 elif "openExternalBrowser" in _qp and not st.session_state.get("_oauth_user"):
-    import json as _json
-    import streamlit.components.v1 as _cmp
     _auth_url_ext = _build_google_auth_url()
-
     st.markdown("""
 <div style="text-align:center; padding: 3rem 1rem 1.5rem;">
   <div style="font-size:56px">⚔️</div>
   <h1 style="font-size:22px; font-weight:700; margin:0.8rem 0 0.3rem;">美股投資戰情室</h1>
-  <p style="color:#888; font-size:13px;">已切換至外部瀏覽器，正在開啟 Google 登入…</p>
 </div>""", unsafe_allow_html=True)
-
     if _auth_url_ext:
-        # 嘗試透過 component iframe 自動跳轉（Streamlit allow-same-origin）
-        _cmp.html(
-            f"<script>try{{window.parent.location.href={_json.dumps(_auth_url_ext)};}}catch(e){{}}</script>",
-            height=0,
-        )
-        # 提示框：自動跳轉若因瀏覽器環境被擋，請手動點擊
-        st.info("✅ 已切換至外部瀏覽器。若頁面未自動跳轉，請點下方按鈕完成登入。", icon="📱")
+        st.info("✅ 已切換至外部瀏覽器，請點下方按鈕以 Google 帳號登入。", icon="📱")
         st.link_button("🔵　使用 Google 帳號登入", _auth_url_ext,
                        use_container_width=True, type="primary")
     st.stop()
@@ -358,6 +346,21 @@ elif "openExternalBrowser" in _qp and not st.session_state.get("_oauth_user"):
 # ── 未登入：顯示歡迎頁 ────────────────────────────────────
 if not st.session_state.get("_oauth_user"):
     _auth_url = _build_google_auth_url()
+
+    # ── 伺服器端偵測瀏覽器類型（st.context.headers，無需 JS）──
+    import re as _re
+    _is_inline_browser = False
+    try:
+        _ua = st.context.headers.get("User-Agent", "")
+        _is_inline_browser = bool(_re.search(
+            r"Line\/|FBAN|FBAV|Instagram", _ua, _re.I
+        ))
+    except Exception:
+        pass  # 舊版 Streamlit 不支援 st.context，預設為外部瀏覽器
+
+    # 內建瀏覽器 → 中繼頁（LINE 攔截 openExternalBrowser=1 切外部瀏覽器）
+    # 外部瀏覽器 → 直接走 Google OAuth，完全跳過中繼
+    _btn_url = (_APP_URL + "?openExternalBrowser=1") if _is_inline_browser else (_auth_url or "")
 
     st.markdown("""
 <div style="text-align:center; padding: 3rem 1rem 1rem;">
@@ -367,27 +370,9 @@ if not st.session_state.get("_oauth_user"):
 </div>
 """, unsafe_allow_html=True)
 
-    # 按鈕預設指向中繼頁（LINE 專用）
-    # JS 偵測：若為一般外部瀏覽器（非 LINE/FB/IG），直接改為 Google OAuth URL，跳過中繼
-    _ext_trigger = _APP_URL + "?openExternalBrowser=1"
-    if _auth_url:
-        import json as _json
-        import streamlit.components.v1 as _cmp
-        # 智慧偵測：非內建瀏覽器直接走 OAuth，不經過中繼頁
-        _cmp.html(f"""<script>
-(function() {{
-  var ua = navigator.userAgent || '';
-  var isInApp = /Line\/|FBAN|FBAV|Instagram/i.test(ua);
-  if (isInApp) return;  // 內建瀏覽器：保留中繼 URL，讓 LINE 用 openExternalBrowser 處理
-  // 一般瀏覽器：直接指向 Google OAuth，省去中繼步驟
-  try {{
-    var btn = window.parent.document.querySelector('[data-testid="stLinkButton"] a');
-    if (btn) btn.href = {_json.dumps(_auth_url)};
-  }} catch(e) {{}}
-}})();
-</script>""", height=0)
+    if _btn_url:
         st.link_button("🔵　使用 Google 帳號登入",
-                       _ext_trigger,
+                       _btn_url,
                        use_container_width=True,
                        type="primary")
     else:
