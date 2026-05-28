@@ -316,7 +316,8 @@ def _fetch_ticker_data(symbol: str, name: str) -> Optional[StockData]:
         t    = yf.Ticker(symbol)
         info = t.info
         hist = t.history(period="5d")
-
+        if hist.empty:
+            hist = t.history(period="1mo")   # 備援：5d 空時改抓 1mo
         if hist.empty:
             return None
 
