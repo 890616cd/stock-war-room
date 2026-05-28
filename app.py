@@ -237,7 +237,8 @@ def _init_state():
         #    之後只讀寫這個 dict，永遠不再碰 os.environ，
         #    確保每位使用者完全隔離。
         "session_keys": {k: os.getenv(k, "") for k in _ALL_KEY_VARS},
-        "setup_done":   False,
+        "setup_done":      False,
+        "_sector_labels":  {},   # 使用者自訂板塊名稱覆蓋（key → 自訂文字）
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -545,6 +546,11 @@ SECTOR_LABELS = {
     "other":         "其他",
 }
 
+def get_sector_label(key: str) -> str:
+    """取得板塊顯示名稱（優先使用使用者自訂名稱）"""
+    custom = st.session_state.get("_sector_labels", {})
+    return custom.get(key) or SECTOR_LABELS.get(key, key)
+
 def load_wl() -> dict:
     """
     讀取自選股清單。
@@ -600,16 +606,17 @@ def _cloud_sync_wl():
 def wl_add(symbol: str, name: str, sector: str) -> str:
     data = load_wl()
     sym  = symbol.upper().strip()
+    display_name = name.strip() or sym   # 未填名稱時以代號作顯示名
     for sec in data:
         if sym in data[sec]:
             if sec == sector:
-                return f"⚠️ {sym} 已在「{SECTOR_LABELS[sec]}」板塊中"
+                return f"⚠️ {sym} 已在「{get_sector_label(sec)}」板塊中"
             del data[sec][sym]
             break
-    data[sector][sym] = name.strip()
+    data[sector][sym] = display_name
     save_wl(data)
     _cloud_sync_wl()
-    return f"✅ {sym}（{name}）已加入【{SECTOR_LABELS[sector]}】"
+    return f"✅ {sym}（{display_name}）已加入【{get_sector_label(sector)}】"
 
 def wl_remove(symbol: str) -> str:
     data = load_wl()
@@ -761,19 +768,28 @@ def render_stock_detail(symbol: str, name: str):
     st.caption("📡 資料來源：Yahoo Finance（yfinance）")
     with st.spinner(f"正在載入 {stock.symbol} 圖表數據..."):
         df  = fetch_chart_data(stock.symbol, period="1y")
+        from module_stock_chart import build_macd_chart, build_kdj_chart, build_rsi_chart
         fig = build_stock_chart(df, stock.symbol, stock.name)
-    st.plotly_chart(fig, use_container_width=True, config={
+    _chart_cfg = {
         "scrollZoom":     True,
         "displayModeBar": True,
         "modeBarButtonsToRemove": ["lasso2d", "select2d"],
         "modeBarButtonsToAdd":    ["toggleSpikelines"],
-        "toImageButtonOptions": {
-            "format": "png",
-            "filename": f"{stock.symbol}_chart",
-            "height": 780, "width": 1400, "scale": 2,
-        },
-    })
+    }
+    st.plotly_chart(fig, use_container_width=True, config=_chart_cfg)
     st.caption("💡 拖拽右側刻度可縮放 y 軸區間；滾輪縮放時間區間；雙擊還原視圖。")
+
+    # ── 技術指標（可摺疊）──────────────────────────────────
+    if not df.empty:
+        with st.expander("📉 MACD（12, 26, 9）", expanded=False):
+            st.plotly_chart(build_macd_chart(df), use_container_width=True,
+                            config=_chart_cfg)
+        with st.expander("📊 KDJ（9, 3, 3）", expanded=False):
+            st.plotly_chart(build_kdj_chart(df), use_container_width=True,
+                            config=_chart_cfg)
+        with st.expander("📈 RSI（6, 12, 24）", expanded=False):
+            st.plotly_chart(build_rsi_chart(df), use_container_width=True,
+                            config=_chart_cfg)
 
     st.divider()
 
@@ -1239,11 +1255,23 @@ def render_stock_detail(symbol: str, name: str):
             from module3_llm_summarizer import call_model, MODEL_CATALOG
             sel = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
             custom_p = st.session_state.get("custom_prompt", "")
+            _pref_section = ""
+            if custom_p.strip():
+                _pref_section = f"""
+
+════════════════════════════════════════
+【使用者投資風格偏好 — 最高優先級，必須完整遵循】
+════════════════════════════════════════
+{custom_p.strip()}
+════════════════════════════════════════
+以上為使用者的核心投資偏好設定。請逐條確認報告中的每項建議均符合上述風格需求，
+不得省略、縮減或忽略任何一項偏好細節。若偏好與數據有矛盾，請明確說明。
+"""
             sys_p_stock = (
                 "你是一位謹慎的量化交易副官。"
                 "根據提供的數據給出個股操作建議，並分析近期新聞對該標的的影響。"
                 "所有判斷必須基於提供的數據，不得憑空捏造任何數字。"
-                + (f"\n\n[使用者偏好]\n{custom_p}" if custom_p.strip() else "")
+                + _pref_section
             )
             multi_res: dict = {}
             for i, mid in enumerate(sel):
@@ -1257,9 +1285,10 @@ def render_stock_detail(symbol: str, name: str):
             st.rerun()
 
 
-# ── 首次訪問：無任何 AI 模型 Key 時彈出設定導引 ──────────
+# ── 首次訪問：無任何 AI 模型 Key 時彈出設定導引（每個 Session 只顯示一次）──
 _has_any_ai_key = any(_get_key(k) for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"))
 if not _has_any_ai_key and not st.session_state.get("setup_done"):
+    st.session_state["setup_done"] = True   # 先標記，避免切頁面重複彈出
     _show_onboarding()
 
 with st.sidebar:
@@ -1515,10 +1544,11 @@ elif page == "📋 自選股管理":
         if total == 0:
             st.info("清單為空，請至「新增股票」頁面加入")
         else:
-            for sec_key, label in SECTOR_LABELS.items():
+            for sec_key in SECTOR_LABELS:
                 stocks_raw = wl_data.get(sec_key, {})
                 if not stocks_raw:
                     continue
+                label = get_sector_label(sec_key)
                 with st.expander(f"【{label}】{len(stocks_raw)} 檔", expanded=True):
                     for sym, name in list(stocks_raw.items()):
                         col_btn, col_rm = st.columns([6, 1])
@@ -1533,6 +1563,21 @@ elif page == "📋 自選股管理":
                             msg = wl_remove(sym)
                             st.toast(msg)
                             st.rerun()
+                    # ── 板塊改名 ──────────────────────────
+                    st.caption("─" * 30)
+                    _new_lbl = st.text_input(
+                        "板塊名稱", value=label,
+                        key=f"lbl_{sec_key}",
+                        placeholder="輸入新名稱",
+                        label_visibility="collapsed",
+                    )
+                    if st.button("✏️ 確認更名", key=f"rename_{sec_key}",
+                                 use_container_width=True):
+                        _new_lbl = _new_lbl.strip()
+                        if _new_lbl and _new_lbl != label:
+                            st.session_state["_sector_labels"][sec_key] = _new_lbl
+                            st.toast(f"✅ 已更名為「{_new_lbl}」")
+                            st.rerun()
 
     # ── 新增股票 ──────────────────────────────────────────
     with tab_add:
@@ -1540,20 +1585,20 @@ elif page == "📋 自選股管理":
             st.subheader("新增股票")
             col_a, col_b = st.columns(2)
             with col_a:
-                new_sym  = st.text_input("股票代號", placeholder="例：NVDA").upper().strip()
+                new_sym  = st.text_input("股票代號 *", placeholder="例：NVDA").upper().strip()
             with col_b:
-                new_name = st.text_input("股票名稱", placeholder="例：NVIDIA")
+                new_name = st.text_input("股票名稱（選填）", placeholder="例：NVIDIA，留空則以代號顯示")
 
             new_sec = st.selectbox(
                 "板塊",
                 options = list(SECTOR_LABELS.keys()),
-                format_func = lambda x: SECTOR_LABELS[x],
+                format_func = get_sector_label,
             )
 
             submitted = st.form_submit_button("➕ 加入清單", type="primary", use_container_width=True)
             if submitted:
-                if not new_sym or not new_name:
-                    st.error("請填入代號與名稱")
+                if not new_sym:
+                    st.error("請填入股票代號")
                 else:
                     msg = wl_add(new_sym, new_name, new_sec)
                     if msg.startswith("✅"):
