@@ -1304,6 +1304,35 @@ def render_stock_detail(symbol: str, name: str):
                 ) + (f"  EPS成長={eg:+.1f}%" if eg is not None else "")
             val_multi_str = "\n".join(val_multi)
 
+            # ── Step 3：多模型呼叫 ────────────────────────
+            from module3_llm_summarizer import call_model, MODEL_CATALOG
+            sel = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
+            custom_p = st.session_state.get("custom_prompt", "").strip()
+
+            # 戰術建議版塊：有自訂偏好時完全用使用者指定格式，否則用預設格式
+            if custom_p:
+                tactic_section = f"""## 🎯 {stock.symbol} 當前戰術建議
+
+**警戒等級：{level}**
+
+【輸出要求】請嚴格按照以下使用者指定的分析框架逐項輸出，不得省略任何項目，不得改用其他格式：
+
+{custom_p}
+
+請確保每個分析項目都有具體數據支撐，數字須引用上方提供的數據，不得憑空捏造。"""
+            else:
+                tactic_section = f"""## 🎯 {stock.symbol} 當前戰術建議
+
+**警戒等級：{level}**
+
+**操作方向：** 加碼 / 減碼 / 觀望 / 停損（四擇一，加粗標示）
+
+**理由：** 2–3 句，引用上方數據，不得憑空捏造。
+
+**關鍵價位：** 支撐位與壓力位（從區間位置與52週高低點推算）。
+
+**風險提示：** 此標的在當前警戒等級下最主要的下行風險。"""
+
             user_prompt = f"""根據以下數據，生成個股完整分析。
 
 【個股資料】
@@ -1327,17 +1356,7 @@ def render_stock_detail(symbol: str, name: str):
 
 請輸出以下兩個版塊：
 
-## 🎯 {stock.symbol} 當前戰術建議
-
-**警戒等級：{level}**
-
-**操作方向：** 加碼 / 減碼 / 觀望 / 停損（四擇一，加粗標示）
-
-**理由：** 2–3 句，引用上方數據，不得憑空捏造。
-
-**關鍵價位：** 支撐位與壓力位（從區間位置與52週高低點推算）。
-
-**風險提示：** 此標的在當前警戒等級下最主要的下行風險。
+{tactic_section}
 
 ---
 
@@ -1351,27 +1370,11 @@ def render_stock_detail(symbol: str, name: str):
 - 影響：利多 / 利空 / 中性待觀察（三選一）
 - 分析：一句話，說明此新聞對 {stock.symbol} 的潛在影響"""
 
-            # ── Step 3：多模型呼叫 ────────────────────────
-            from module3_llm_summarizer import call_model, MODEL_CATALOG
-            sel = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
-            custom_p = st.session_state.get("custom_prompt", "")
-            _pref_section = ""
-            if custom_p.strip():
-                _pref_section = f"""
-
-════════════════════════════════════════
-【使用者投資風格偏好 — 最高優先級，必須完整遵循】
-════════════════════════════════════════
-{custom_p.strip()}
-════════════════════════════════════════
-以上為使用者的核心投資偏好設定。請逐條確認報告中的每項建議均符合上述風格需求，
-不得省略、縮減或忽略任何一項偏好細節。若偏好與數據有矛盾，請明確說明。
-"""
             sys_p_stock = (
                 "你是一位謹慎的量化交易副官。"
                 "根據提供的數據給出個股操作建議，並分析近期新聞對該標的的影響。"
                 "所有判斷必須基於提供的數據，不得憑空捏造任何數字。"
-                + _pref_section
+                "使用者已在分析請求中指定輸出格式，請嚴格遵守，逐項完整輸出。"
             )
             multi_res: dict = {}
             for i, mid in enumerate(sel):
