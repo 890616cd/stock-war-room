@@ -845,7 +845,22 @@ def render_stock_detail(symbol: str, name: str):
                 stock = None
 
     if stock is None:
-        st.error(f"無法取得 {symbol} 數據，請稍後點擊「🔄 重新整理數據」重試。")
+        st.error(f"無法取得 {symbol} 數據，請點擊上方「🔄 重新整理數據」重試。")
+        with st.expander("🔍 錯誤診斷（展開查看詳細原因）"):
+            import yfinance as _yf, traceback as _tb
+            try:
+                _t = _yf.Ticker(symbol)
+                _h = _t.history(period="5d")
+                st.write(f"**history(5d)** 筆數：{len(_h)}，空：{_h.empty}")
+                if _h.empty:
+                    _h2 = _t.history(period="1mo")
+                    st.write(f"**history(1mo)** 筆數：{len(_h2)}，空：{_h2.empty}")
+                _info = _t.info
+                st.write(f"**info keys 數量**：{len(_info)}")
+                st.write(f"**quoteType**：{_info.get('quoteType','N/A')}")
+            except Exception as _ex:
+                st.error(f"yfinance 例外：`{type(_ex).__name__}: {_ex}`")
+                st.code(_tb.format_exc())
         return
 
     # ── 標題列 ────────────────────────────────────────────
