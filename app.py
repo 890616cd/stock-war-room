@@ -426,9 +426,15 @@ if not st.session_state.get("user_data_loaded"):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_stock_quick(symbol: str, name: str):
-    """從 yfinance 抓取個股報價＋估值，不依賴主分析流程。"""
+    """從 yfinance 抓取個股報價＋估值，不依賴主分析流程。
+    抓取失敗時丟 RuntimeError，讓 st.cache_data 不快取空結果，
+    下次重試才能真正重新請求 yfinance。
+    """
     from module1_data_fetcher import _fetch_ticker_data
-    return _fetch_ticker_data(symbol, name)
+    result = _fetch_ticker_data(symbol, name)
+    if result is None:
+        raise RuntimeError(f"yfinance 無法取得 {symbol} 資料")
+    return result
 
 
 def _is_cloud() -> bool:
@@ -833,10 +839,13 @@ def render_stock_detail(symbol: str, name: str):
 
     if stock is None:
         with st.spinner(f"正在載入 {symbol} 報價數據..."):
-            stock = fetch_stock_quick(symbol, name)
+            try:
+                stock = fetch_stock_quick(symbol, name)
+            except Exception:
+                stock = None
 
     if stock is None:
-        st.error(f"無法取得 {symbol} 數據，請確認代號正確或稍後重試。")
+        st.error(f"無法取得 {symbol} 數據，請稍後點擊「🔄 重新整理數據」重試。")
         return
 
     # ── 標題列 ────────────────────────────────────────────
