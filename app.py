@@ -1309,17 +1309,29 @@ def render_stock_detail(symbol: str, name: str):
             sel = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
             custom_p = st.session_state.get("custom_prompt", "").strip()
 
-            # 戰術建議版塊：有自訂偏好時完全用使用者指定格式，否則用預設格式
+            # 戰術建議版塊
+            # 共同結尾：四格操作摘要（關鍵價位依使用者風格給進出場建議）
+            _style_hint = f"（依照使用者操作風格：{custom_p[:60]}{'...' if len(custom_p) > 60 else ''}）" if custom_p else ""
+            _closing_fields = f"""
+---
+
+**操作方向：** 加碼 / 減碼 / 觀望 / 停損（四擇一，加粗標示）
+
+**理由：** 2–3 句，引用上方數據，不得憑空捏造。
+
+**關鍵價位{_style_hint}：** 支撐位與壓力位（從區間位置與52週高低點推算），並依照使用者的操作風格給出具體進場條件與出場停利/停損建議。
+
+**風險提示：** 此標的在當前警戒等級下，針對上述操作風格最主要的下行風險。"""
+
             if custom_p:
                 tactic_section = f"""## 🎯 {stock.symbol} 當前戰術建議
 
 **警戒等級：{level}**
 
-【輸出要求】請嚴格按照以下使用者指定的分析框架逐項輸出，不得省略任何項目，不得改用其他格式：
+【風格分析】請先嚴格按照以下使用者指定的分析框架逐項輸出，每項均需引用具體數據：
 
 {custom_p}
-
-請確保每個分析項目都有具體數據支撐，數字須引用上方提供的數據，不得憑空捏造。"""
+{_closing_fields}"""
             else:
                 tactic_section = f"""## 🎯 {stock.symbol} 當前戰術建議
 
@@ -1329,7 +1341,7 @@ def render_stock_detail(symbol: str, name: str):
 
 **理由：** 2–3 句，引用上方數據，不得憑空捏造。
 
-**關鍵價位：** 支撐位與壓力位（從區間位置與52週高低點推算）。
+**關鍵價位：** 支撐位與壓力位（從區間位置與52週高低點推算），並給出具體進場條件與出場停利/停損建議。
 
 **風險提示：** 此標的在當前警戒等級下最主要的下行風險。"""
 
