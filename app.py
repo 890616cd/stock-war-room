@@ -237,8 +237,8 @@ def _init_state():
         #    之後只讀寫這個 dict，永遠不再碰 os.environ，
         #    確保每位使用者完全隔離。
         "session_keys": {k: os.getenv(k, "") for k in _ALL_KEY_VARS},
-        "setup_done":      False,
-        "_sector_labels":  {},   # 使用者自訂板塊名稱覆蓋（key → 自訂文字）
+        "setup_done":       False,
+        "_custom_sectors":  {},   # 使用者自訂板塊 {key → 名稱}，隨 watchlist 一起持久化
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -543,24 +543,45 @@ SECTOR_LABELS = {
     "defense":       "國防 / 航太",
     "consumer":      "消費 / 零售",
     "etf":           "ETF / 指數基金",
-    "other":         "其他",
 }
+MAX_SECTORS = 20   # 預設 7 + 自訂最多 13，合計不超過此值
+
 
 def get_sector_label(key: str) -> str:
-    """取得板塊顯示名稱（優先使用使用者自訂名稱）"""
-    custom = st.session_state.get("_sector_labels", {})
-    return custom.get(key) or SECTOR_LABELS.get(key, key)
+    """取得板塊顯示名稱（自訂板塊優先；內建其次；最後回傳 key 本身）"""
+    custom = st.session_state.get("_custom_sectors", {})
+    if key in custom:
+        return custom[key]
+    return SECTOR_LABELS.get(key, key)
+
+
+def get_all_sector_keys() -> list:
+    """返回全部板塊 key（預設 7 + 使用者自訂）"""
+    custom = st.session_state.get("_custom_sectors", {})
+    return list(SECTOR_LABELS.keys()) + list(custom.keys())
+
+
+def _sync_custom_sectors_from_wl(data: dict):
+    """從 _wl_data 的 _custom_sectors 欄位載入自訂板塊定義到 session state"""
+    cs = data.get("_custom_sectors")
+    if isinstance(cs, dict):
+        st.session_state["_custom_sectors"] = cs
+    elif "_custom_sectors" not in st.session_state:
+        st.session_state["_custom_sectors"] = {}
+
 
 def load_wl() -> dict:
     """
     讀取自選股清單。
     - 本機：從 watchlist.json 讀取，並同步到 session state
     - 雲端：每個使用者的 session state 即為其個人清單
+    自訂板塊定義存在 data["_custom_sectors"] 裡，與清單一起持久化。
     """
     # 優先使用 session state（雲端每人獨立；本機也作快取）
     if "_wl_data" in st.session_state:
         data = st.session_state["_wl_data"]
-        for s in SECTOR_LABELS:
+        _sync_custom_sectors_from_wl(data)
+        for s in get_all_sector_keys():
             data.setdefault(s, {})
         return data
     # 本機：從檔案載入
@@ -568,7 +589,8 @@ def load_wl() -> dict:
         try:
             with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            for s in SECTOR_LABELS:
+            _sync_custom_sectors_from_wl(data)
+            for s in get_all_sector_keys():
                 data.setdefault(s, {})
             st.session_state["_wl_data"] = data
             return data
@@ -576,6 +598,8 @@ def load_wl() -> dict:
             pass
     # 預設空清單
     empty = {s: {} for s in SECTOR_LABELS}
+    empty["_custom_sectors"] = {}
+    st.session_state["_custom_sectors"] = {}
     st.session_state["_wl_data"] = empty
     return empty
 
@@ -602,6 +626,53 @@ def _cloud_sync_wl():
             save_user_data(uid)
         except Exception:
             pass
+
+
+def _save_custom_sectors():
+    """將 _custom_sectors 寫回 _wl_data 並持久化"""
+    data = load_wl()
+    data["_custom_sectors"] = st.session_state.get("_custom_sectors", {})
+    save_wl(data)
+    _cloud_sync_wl()
+
+
+def custom_sector_add(label: str) -> str:
+    """新增自訂板塊，返回結果訊息"""
+    label = label.strip()
+    if not label:
+        return "⚠️ 請輸入板塊名稱"
+    custom = st.session_state.setdefault("_custom_sectors", {})
+    if len(SECTOR_LABELS) + len(custom) >= MAX_SECTORS:
+        return f"⚠️ 已達板塊上限（{MAX_SECTORS} 個），請先刪除不需要的板塊"
+    all_labels = list(SECTOR_LABELS.values()) + list(custom.values())
+    if label in all_labels:
+        return f"⚠️ 板塊名稱「{label}」已存在"
+    import time as _time
+    key = f"cs_{int(_time.time() * 1000)}"
+    custom[key] = label
+    data = load_wl()
+    data[key] = {}
+    data["_custom_sectors"] = custom
+    save_wl(data)
+    _cloud_sync_wl()
+    return f"✅ 已新增板塊「{label}」"
+
+
+def custom_sector_delete(key: str) -> str:
+    """刪除自訂板塊（板塊內有股票時拒絕），返回結果訊息"""
+    custom = st.session_state.get("_custom_sectors", {})
+    label  = custom.get(key, key)
+    data   = load_wl()
+    stocks = data.get(key, {})
+    if stocks:
+        return f"⚠️ 板塊「{label}」中還有 {len(stocks)} 檔股票，請先全部移除後再刪除板塊"
+    custom.pop(key, None)
+    data.pop(key, None)
+    data["_custom_sectors"] = custom
+    st.session_state["_custom_sectors"] = custom
+    save_wl(data)
+    _cloud_sync_wl()
+    return f"✅ 已刪除板塊「{label}」"
 
 def wl_add(symbol: str, name: str, sector: str) -> str:
     data = load_wl()
@@ -1544,7 +1615,13 @@ elif page == "📋 自選股管理":
         if total == 0:
             st.info("清單為空，請至「新增股票」頁面加入")
         else:
-            for sec_key in SECTOR_LABELS:
+            # 迭代全部板塊（預設 + 自訂 + 舊版 legacy key 如 other）
+            _shown_keys = get_all_sector_keys()
+            for _lk in wl_data:
+                if _lk not in _shown_keys and _lk != "_custom_sectors" and isinstance(wl_data[_lk], dict):
+                    _shown_keys.append(_lk)
+
+            for sec_key in _shown_keys:
                 stocks_raw = wl_data.get(sec_key, {})
                 if not stocks_raw:
                     continue
@@ -1563,21 +1640,6 @@ elif page == "📋 自選股管理":
                             msg = wl_remove(sym)
                             st.toast(msg)
                             st.rerun()
-                    # ── 板塊改名 ──────────────────────────
-                    st.caption("─" * 30)
-                    _new_lbl = st.text_input(
-                        "板塊名稱", value=label,
-                        key=f"lbl_{sec_key}",
-                        placeholder="輸入新名稱",
-                        label_visibility="collapsed",
-                    )
-                    if st.button("✏️ 確認更名", key=f"rename_{sec_key}",
-                                 use_container_width=True):
-                        _new_lbl = _new_lbl.strip()
-                        if _new_lbl and _new_lbl != label:
-                            st.session_state["_sector_labels"][sec_key] = _new_lbl
-                            st.toast(f"✅ 已更名為「{_new_lbl}」")
-                            st.rerun()
 
     # ── 新增股票 ──────────────────────────────────────────
     with tab_add:
@@ -1591,8 +1653,8 @@ elif page == "📋 自選股管理":
 
             new_sec = st.selectbox(
                 "板塊",
-                options = list(SECTOR_LABELS.keys()),
-                format_func = get_sector_label,
+                options      = get_all_sector_keys(),
+                format_func  = get_sector_label,
             )
 
             submitted = st.form_submit_button("➕ 加入清單", type="primary", use_container_width=True)
@@ -1605,6 +1667,49 @@ elif page == "📋 自選股管理":
                         st.success(msg)
                     else:
                         st.warning(msg)
+
+        # ── 自訂板塊管理 ──────────────────────────────────
+        st.divider()
+        _custom_now = st.session_state.get("_custom_sectors", {})
+        _total_secs = len(SECTOR_LABELS) + len(_custom_now)
+        st.markdown(f"**🗂️ 自訂板塊管理**　`{_total_secs}/{MAX_SECTORS}`")
+        st.caption("新增專屬板塊分類，最多可建立至合計 20 個板塊。有股票的板塊需先清空才能刪除。")
+
+        # 現有自訂板塊列表（含刪除按鈕）
+        if _custom_now:
+            for _cs_key, _cs_label in list(_custom_now.items()):
+                _wl_now   = load_wl()
+                _cs_count = len(_wl_now.get(_cs_key, {}))
+                c_lbl, c_cnt, c_del = st.columns([5, 2, 1])
+                c_lbl.write(f"**{_cs_label}**")
+                c_cnt.caption(f"{_cs_count} 檔" if _cs_count else "空板塊")
+                if c_del.button("✕", key=f"delcs_{_cs_key}", type="secondary"):
+                    _msg = custom_sector_delete(_cs_key)
+                    if _msg.startswith("✅"):
+                        st.toast(_msg)
+                        st.rerun()
+                    else:
+                        st.warning(_msg)
+        else:
+            st.caption("尚無自訂板塊")
+
+        # 新增自訂板塊
+        if _total_secs < MAX_SECTORS:
+            st.markdown("")
+            _nc1, _nc2 = st.columns([4, 1])
+            _new_cs_name = _nc1.text_input(
+                "新板塊名稱", placeholder="例：台股、生技、REITs",
+                label_visibility="collapsed", key="new_cs_input",
+            )
+            if _nc2.button("＋ 新增", key="add_cs_btn", use_container_width=True):
+                _msg = custom_sector_add(_new_cs_name)
+                if _msg.startswith("✅"):
+                    st.toast(_msg)
+                    st.rerun()
+                else:
+                    st.warning(_msg)
+        else:
+            st.info(f"已達板塊上限（{MAX_SECTORS} 個）", icon="ℹ️")
 
         st.divider()
         st.caption("快速新增常見標的")
