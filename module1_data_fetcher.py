@@ -313,8 +313,9 @@ def _fmp_stable_estimates(symbol: str, fmp_key: str, price: float,
 def _fetch_ticker_data(symbol: str, name: str) -> Optional[StockData]:
     """單一標的資料抓取（OHLC / 估值 / 分析師目標價 / 多年預估成長率）"""
     try:
-        t    = yf.Ticker(symbol)
-        info = t.info
+        t = yf.Ticker(symbol)
+
+        # ── 優先抓 history（不限速；info 可能被 Yahoo 限速）────
         hist = t.history(period="5d")
         if hist.empty:
             hist = t.history(period="1mo")   # 備援：5d 空時改抓 1mo
@@ -331,7 +332,24 @@ def _fetch_ticker_data(symbol: str, name: str) -> Optional[StockData]:
         open_price = round(float(hist["Open"].iloc[-1]),  2) if not hist.empty else None
         high_price = round(float(hist["High"].iloc[-1]),  2) if not hist.empty else None
         low_price  = round(float(hist["Low"].iloc[-1]),   2) if not hist.empty else None
-        beta       = round(float(info["beta"]), 2)            if info.get("beta") else None
+
+        # ── t.info（Yahoo 可能限速；失敗時降級用 fast_info）──
+        info = {}
+        try:
+            info = t.info or {}
+        except Exception:
+            try:
+                fi = t.fast_info
+                info = {
+                    "fiftyTwoWeekHigh":   getattr(fi, "year_high",  price),
+                    "fiftyTwoWeekLow":    getattr(fi, "year_low",   price),
+                    "averageVolume10days": getattr(fi, "three_month_average_volume", volume),
+                    "marketCap":           getattr(fi, "market_cap", None),
+                }
+            except Exception:
+                pass
+
+        beta = round(float(info["beta"]), 2) if info.get("beta") else None
 
         # ── 估值指標 ──────────────────────────────────────
         forward_pe  = info.get("forwardPE")
