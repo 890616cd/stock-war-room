@@ -2431,6 +2431,24 @@ elif page == "📝 版本更新紀錄":
     st.divider()
 
     _CHANGELOG = [
+        ("v1.28", "個股 AI 戰術建議格式優化", [
+            ("調整", [
+                "自訂投資風格提示詞（custom_prompt）現在直接驅動 AI 輸出格式：使用者設定的分析框架會完整出現在 user_prompt 中，AI 依序逐項輸出，不再被系統 prompt 預設格式覆蓋。",
+                "四欄位結尾結構強制附加：無論使用者是否設有自訂 prompt，AI 回覆結尾一律附上「操作方向 → 理由 → 關鍵價位 → 風險提示」四個標準欄位，確保每次建議都有完整的可操作結論。",
+                "關鍵價位欄位依風格動態標注：有自訂 prompt 時，「關鍵價位」後方附加風格摘要說明，提醒 AI 依照使用者操作風格給出具體進出場條件。",
+                "system_prompt 精簡化：移除舊有將 custom_prompt 注入系統提示詞的邏輯，改由 user_prompt 統一管理格式指令，避免格式衝突。",
+            ]),
+        ]),
+        ("v1.27", "Yahoo Finance 限速修正 & 清單重整鍵", [
+            ("修正", [
+                "個股詳細頁面顯示「無法取得數據」：根本原因為 _fetch_ticker_data() 先呼叫 t.info，Yahoo Finance 限速（YFRateLimitError）觸發外層 except 直接返回 None；修正為先呼叫 t.history()（限速較寬鬆），再獨立 try/except 呼叫 t.info，限速時降級使用 t.fast_info（基於內部快取，不發 HTTP 請求）。",
+                "fetch_stock_quick 快取 None 問題：@st.cache_data 會快取 None 回傳值，導致限速解除後仍持續顯示錯誤長達 5 分鐘；改為限速時拋出 RuntimeError，@st.cache_data 不快取例外，讓下次呼叫可重新嘗試。",
+                "個股頁面錯誤訊息優化：限速時顯示明確說明（Yahoo Finance 目前限速，請稍等 1–2 分鐘後重試），不再顯示通用錯誤。",
+            ]),
+            ("新增", [
+                "我的清單「🔄 重新整理」按鈕：新增股票或更新數據後，點擊即可立即重載清單，不需切換頁面再回來。",
+            ]),
+        ]),
         ("v1.25", "OAuth 安全強化", [
             ("新增", [
                 "state 參數（CSRF 防護）：每次建立 Google 授權 URL 時產生隨機 state，存入 Session；callback 進來時比對 state，不符即拒絕，防止跨站請求偽造攻擊。",
@@ -2531,7 +2549,7 @@ elif page == "📝 版本更新紀錄":
     ]
 
     for ver, title, sections in _CHANGELOG:
-        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.25")):
+        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.28")):
             for sec_title, items in sections:
                 st.markdown(f"**{sec_title}**")
                 for item in items:
