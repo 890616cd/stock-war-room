@@ -570,22 +570,31 @@ def _sync_custom_sectors_from_wl(data: dict):
         st.session_state["_custom_sectors"] = {}
 
 
+def _wl_has_stocks(data: dict) -> bool:
+    """data 中是否有實際股票（排除 _custom_sectors 元數據）"""
+    return any(
+        bool(v)
+        for k, v in data.items()
+        if k != "_custom_sectors" and isinstance(v, dict)
+    )
+
+
 def load_wl() -> dict:
     """
     讀取自選股清單。
-    - 本機：從 watchlist.json 讀取，並同步到 session state
+    - 本機：優先 session state（有股票時）；否則從 watchlist.json 讀取
     - 雲端：每個使用者的 session state 即為其個人清單
     自訂板塊定義存在 data["_custom_sectors"] 裡，與清單一起持久化。
     """
-    # 優先使用 session state（雲端每人獨立；本機也作快取）
-    if "_wl_data" in st.session_state:
+    # session state 有資料且實際有股票 → 直接用（雲端主路徑；本機快取）
+    if "_wl_data" in st.session_state and _wl_has_stocks(st.session_state["_wl_data"]):
         data = st.session_state["_wl_data"]
         _sync_custom_sectors_from_wl(data)
         for s in get_all_sector_keys():
             data.setdefault(s, {})
         return data
-    # 本機：從檔案載入
-    if WATCHLIST_FILE.exists():
+    # 本機：從檔案載入（含 session state 為空時的 fallback）
+    if not _is_cloud() and WATCHLIST_FILE.exists():
         try:
             with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -596,6 +605,13 @@ def load_wl() -> dict:
             return data
         except Exception:
             pass
+    # 雲端：session state 無股票（Supabase 空資料）→ 直接用空 session state
+    if "_wl_data" in st.session_state:
+        data = st.session_state["_wl_data"]
+        _sync_custom_sectors_from_wl(data)
+        for s in get_all_sector_keys():
+            data.setdefault(s, {})
+        return data
     # 預設空清單
     empty = {s: {} for s in SECTOR_LABELS}
     empty["_custom_sectors"] = {}
@@ -678,11 +694,13 @@ def wl_add(symbol: str, name: str, sector: str) -> str:
     data = load_wl()
     sym  = symbol.upper().strip()
     display_name = name.strip() or sym   # 未填名稱時以代號作顯示名
-    for sec in data:
-        if sym in data[sec]:
+    for sec, stocks in data.items():
+        if sec == "_custom_sectors" or not isinstance(stocks, dict):
+            continue
+        if sym in stocks:
             if sec == sector:
                 return f"⚠️ {sym} 已在「{get_sector_label(sec)}」板塊中"
-            del data[sec][sym]
+            del stocks[sym]
             break
     data[sector][sym] = display_name
     save_wl(data)
@@ -693,6 +711,8 @@ def wl_remove(symbol: str) -> str:
     data = load_wl()
     sym  = symbol.upper().strip()
     for sec, stocks in data.items():
+        if sec == "_custom_sectors" or not isinstance(stocks, dict):
+            continue
         if sym in stocks:
             name = stocks.pop(sym)
             save_wl(data)
@@ -701,7 +721,7 @@ def wl_remove(symbol: str) -> str:
     return f"⚠️ {sym} 不在清單中"
 
 def wl_total(data: dict) -> int:
-    return sum(len(v) for v in data.values())
+    return sum(len(v) for k, v in data.items() if k != "_custom_sectors" and isinstance(v, dict))
 
 
 # ════════════════════════════════════════════════════════
