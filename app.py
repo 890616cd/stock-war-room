@@ -1637,9 +1637,12 @@ elif page == "📋 自選股管理":
 
         # ── 我的清單 ────────────────────────────────────────
     with tab_list:
+        _col_refresh, _col_cap = st.columns([1, 5])
+        if _col_refresh.button("🔄 重新整理", key="wl_refresh", use_container_width=True):
+            st.rerun()
         wl_data = load_wl()
         total   = wl_total(wl_data)
-        st.caption(f"共 {total} 檔股票　（點擊名稱查看詳細頁面）")
+        _col_cap.caption(f"共 {total} 檔股票　（點擊名稱查看詳細頁面）")
 
         if total == 0:
             st.info("清單為空，請至「新增股票」頁面加入")
