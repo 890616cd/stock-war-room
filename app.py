@@ -252,6 +252,194 @@ if "_go_to_page" in st.session_state:
 
 
 # ════════════════════════════════════════════════════════
+#  雲端環境偵測（提前定義，供登入模組使用）
+# ════════════════════════════════════════════════════════
+
+def _is_cloud() -> bool:
+    """偵測是否在 Streamlit Community Cloud 執行"""
+    return bool(
+        os.getenv("STREAMLIT_SHARING_MODE")
+        or "/mount/src/" in str(Path(__file__).resolve())
+    )
+
+
+# ════════════════════════════════════════════════════════
+#  桌面版本機帳號系統（帳號密碼，最多 5 組）
+# ════════════════════════════════════════════════════════
+import hashlib as _hashlib
+
+_ACCOUNTS_FILE   = Path(__file__).parent / "accounts.json"
+_MAX_LOCAL_ACCTS = 5
+_MIN_PWD_LEN     = 6
+
+
+def _load_accounts() -> dict:
+    """讀取本機帳號資料（accounts.json）"""
+    if _ACCOUNTS_FILE.exists():
+        try:
+            return json.loads(_ACCOUNTS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"users": {}}
+
+
+def _save_accounts(data: dict):
+    """寫入本機帳號資料"""
+    try:
+        _ACCOUNTS_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except (PermissionError, OSError):
+        pass
+
+
+def _hash_pwd(password: str, salt: str) -> str:
+    """SHA-256 密碼雜湊（salt + password）"""
+    return _hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+
+
+def _gen_salt() -> str:
+    """生成隨機 salt（32 字元 hex）"""
+    import secrets as _sec
+    return _sec.token_hex(16)
+
+
+def _local_load_user_data(username: str, accounts: dict = None):
+    """從 accounts.json 載入使用者個人資料到 session state（模擬雲端 load_user_data）"""
+    if accounts is None:
+        accounts = _load_accounts()
+    user = accounts.get("users", {}).get(username, {})
+    if user.get("watchlist"):
+        st.session_state["_wl_data"] = user["watchlist"]
+    if "selected_models" in user:
+        st.session_state["selected_models"] = user["selected_models"]
+    if "custom_model_ids" in user:
+        st.session_state["custom_model_ids"] = user["custom_model_ids"]
+    if "custom_prompt" in user:
+        st.session_state["custom_prompt"] = user["custom_prompt"]
+    if "_custom_sectors" in user:
+        st.session_state["_custom_sectors"] = user["_custom_sectors"]
+    st.session_state["user_data_loaded"] = True
+
+
+def _local_save_user_data(username: str = None):
+    """將 session state 中的使用者資料儲存回 accounts.json"""
+    if username is None:
+        username = st.session_state.get("_local_user", "")
+    if not username:
+        return
+    accounts = _load_accounts()
+    if username not in accounts.get("users", {}):
+        return
+    accounts["users"][username].update({
+        "watchlist":        st.session_state.get("_wl_data", {}),
+        "selected_models":  st.session_state.get("selected_models", []),
+        "custom_model_ids": st.session_state.get("custom_model_ids", []),
+        "custom_prompt":    st.session_state.get("custom_prompt", ""),
+        "_custom_sectors":  st.session_state.get("_custom_sectors", {}),
+    })
+    _save_accounts(accounts)
+
+
+def _local_login_ui():
+    """桌面版登入 / 建立帳號介面（未登入時全頁呈現，最後呼叫 st.stop()）"""
+    st.markdown("""
+<div style="text-align:center; padding: 3rem 1rem 1rem;">
+  <div style="font-size:64px">⚔️</div>
+  <h1 style="font-size:26px; font-weight:700; margin:0.8rem 0 0.4rem;">美股投資戰情室</h1>
+  <p style="color:#666; font-size:14px; margin-bottom:1.5rem;">桌面版 · 本機帳號登入</p>
+</div>
+""", unsafe_allow_html=True)
+
+    _lc, _lform, _rc = st.columns([1, 2, 1])
+    with _lform:
+        _tab_login, _tab_reg = st.tabs(["🔑 登入", "📝 建立帳號"])
+
+        # ── 登入分頁 ──────────────────────────────────────
+        with _tab_login:
+            _lu = st.text_input("帳號", key="local_login_user", placeholder="輸入帳號")
+            _lp = st.text_input("密碼", key="local_login_pwd",  type="password", placeholder="輸入密碼")
+            if st.button("🔑 登入", key="local_login_btn", type="primary", use_container_width=True):
+                if not _lu.strip() or not _lp:
+                    st.error("⚠️ 請輸入帳號與密碼")
+                else:
+                    _accts  = _load_accounts()
+                    _udata  = _accts.get("users", {}).get(_lu.strip())
+                    if _udata and _hash_pwd(_lp, _udata["salt"]) == _udata["password_hash"]:
+                        st.session_state["_oauth_user"] = {
+                            "email":          _lu.strip(),
+                            "name":           _lu.strip(),
+                            "picture":        None,
+                            "verified_email": True,
+                        }
+                        st.session_state["_local_user"] = _lu.strip()
+                        _local_load_user_data(_lu.strip(), _accts)
+                        st.rerun()
+                    else:
+                        st.error("❌ 帳號或密碼錯誤")
+
+        # ── 建立帳號分頁 ──────────────────────────────────
+        with _tab_reg:
+            import re as _re_reg
+            _nu  = st.text_input("新帳號",  key="local_reg_user",  placeholder="2–20 字元，英數字或底線")
+            _np  = st.text_input("密碼",    key="local_reg_pwd",   type="password",
+                                 placeholder=f"至少 {_MIN_PWD_LEN} 字元")
+            _np2 = st.text_input("確認密碼", key="local_reg_pwd2",  type="password")
+            if st.button("✅ 建立帳號", key="local_reg_btn", type="primary", use_container_width=True):
+                _accts = _load_accounts()
+                _users = _accts.get("users", {})
+                _err   = None
+                if len(_users) >= _MAX_LOCAL_ACCTS:
+                    _err = f"⚠️ 帳號數已達上限（{_MAX_LOCAL_ACCTS} 組），無法新增"
+                elif not _nu.strip() or not _re_reg.match(r'^[A-Za-z0-9_]{2,20}$', _nu.strip()):
+                    _err = "⚠️ 帳號只允許英數字及底線，長度 2–20 字元"
+                elif _nu.strip() in _users:
+                    _err = "⚠️ 此帳號名稱已存在，請換一個"
+                elif len(_np) < _MIN_PWD_LEN:
+                    _err = f"⚠️ 密碼至少需 {_MIN_PWD_LEN} 字元"
+                elif _np != _np2:
+                    _err = "⚠️ 兩次輸入的密碼不一致"
+                if _err:
+                    st.error(_err)
+                else:
+                    _salt = _gen_salt()
+                    _users[_nu.strip()] = {
+                        "password_hash": _hash_pwd(_np, _salt),
+                        "salt":          _salt,
+                        "watchlist": {
+                            "semiconductor": {}, "tech": {}, "finance": {},
+                            "energy": {},        "defense": {},  "consumer": {},
+                            "etf": {},           "other": {},    "_custom_sectors": {},
+                        },
+                        "selected_models":  [],
+                        "custom_model_ids": [],
+                        "custom_prompt":    "",
+                        "_custom_sectors":  {},
+                    }
+                    _accts["users"] = _users
+                    _save_accounts(_accts)
+                    st.success(f"✅ 帳號「{_nu.strip()}」建立成功！請切換到「登入」頁面登入。")
+
+        st.markdown("""
+<div style="text-align:center; margin-top:1.5rem;">
+  <hr style="opacity:0.2; margin-bottom:1rem;">
+  <span style="color:#999; font-size:12px; line-height:1.8;">
+    🔒 密碼以 SHA-256 雜湊儲存，不以明文保存。<br>
+    每個帳號的資料（自選股、API 金鑰、偏好設定）完全獨立。
+  </span>
+</div>
+""", unsafe_allow_html=True)
+
+    st.stop()
+
+
+# ── 桌面版：本機帳號驗證（未登入時阻擋，已登入則繼續）────
+if not _is_cloud() and not st.session_state.get("_oauth_user"):
+    _local_login_ui()
+
+
+# ════════════════════════════════════════════════════════
 #  登入驗證（自定義 Google OAuth，不依賴 st.login / session cookie）
 # ════════════════════════════════════════════════════════
 
@@ -417,9 +605,11 @@ _current_user_id   = _oauth_user.get("email", "unknown")
 _current_user_name = _oauth_user.get("name", _current_user_id)
 _current_user_pic  = _oauth_user.get("picture", None)
 
-# ── 首次登入此 Session：從 Supabase 載入資料 ─────────────
+# ── 首次登入此 Session：載入使用者資料 ──────────────────────
+# 桌面版：_local_load_user_data() 已在登入時設定 user_data_loaded=True，此段跳過
+# 雲端版：從 Supabase 載入
 st.session_state["_current_user_id_cache"] = _current_user_id
-if not st.session_state.get("user_data_loaded"):
+if not st.session_state.get("user_data_loaded") and _is_cloud():
     try:
         from module_storage import load_user_data
         load_user_data(_current_user_id)
@@ -442,14 +632,6 @@ def fetch_stock_quick(symbol: str, name: str):
     if result is None:
         raise RuntimeError(f"yfinance 無法取得 {symbol} 資料")
     return result
-
-
-def _is_cloud() -> bool:
-    """偵測是否在 Streamlit Community Cloud 執行"""
-    return bool(
-        os.getenv("STREAMLIT_SHARING_MODE")
-        or "/mount/src/" in str(Path(__file__).resolve())
-    )
 
 
 def _get_key(env_var: str) -> str:
@@ -708,18 +890,32 @@ def _wl_has_stocks(data: dict) -> bool:
 def load_wl() -> dict:
     """
     讀取自選股清單。
-    - 本機：優先 session state（有股票時）；否則從 watchlist.json 讀取
-    - 雲端：每個使用者的 session state 即為其個人清單
+    - 桌面多用戶：session state 為唯一來源（_local_load_user_data 已載入）；
+      不再讀 watchlist.json，避免跨帳號污染。
+    - 本機單用戶（無帳號登入）：session state 有股票時直接用；否則從 watchlist.json 讀取
+    - 雲端：每個使用者的 session state 即為其個人清單（Supabase load_user_data 已載入）
     自訂板塊定義存在 data["_custom_sectors"] 裡，與清單一起持久化。
     """
-    # session state 有資料且實際有股票 → 直接用（雲端主路徑；本機快取）
+    # session state 有資料且實際有股票 → 直接用（所有路徑的快取命中）
     if "_wl_data" in st.session_state and _wl_has_stocks(st.session_state["_wl_data"]):
         data = st.session_state["_wl_data"]
         _sync_custom_sectors_from_wl(data)
         for s in get_all_sector_keys():
             data.setdefault(s, {})
         return data
-    # 本機：從檔案載入（含 session state 為空時的 fallback）
+    # 桌面多用戶：已透過 accounts.json 載入；session state 空表示帳號本來就沒股票，直接用
+    if not _is_cloud() and st.session_state.get("_local_user"):
+        if "_wl_data" in st.session_state:
+            data = st.session_state["_wl_data"]
+        else:
+            data = {s: {} for s in SECTOR_LABELS}
+            data["_custom_sectors"] = {}
+            st.session_state["_wl_data"] = data
+        _sync_custom_sectors_from_wl(data)
+        for s in get_all_sector_keys():
+            data.setdefault(s, {})
+        return data
+    # 本機（無帳號系統）：從 watchlist.json 讀取
     if not _is_cloud() and WATCHLIST_FILE.exists():
         try:
             with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
@@ -731,7 +927,7 @@ def load_wl() -> dict:
             return data
         except Exception:
             pass
-    # 雲端：session state 無股票（Supabase 空資料）→ 直接用空 session state
+    # 雲端 / fallback：session state 無股票（Supabase 空資料）→ 直接用空 session state
     if "_wl_data" in st.session_state:
         data = st.session_state["_wl_data"]
         _sync_custom_sectors_from_wl(data)
@@ -760,7 +956,10 @@ def save_wl(data: dict):
             pass
 
 def _cloud_sync_wl():
-    """自選股變更後自動同步至 Supabase"""
+    """自選股變更後自動同步（雲端→Supabase；桌面→accounts.json）"""
+    if not _is_cloud():
+        _local_save_user_data()
+        return
     uid = st.session_state.get("_current_user_id_cache", "")
     if uid:
         try:
@@ -1551,14 +1750,22 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     _col_sync, _col_logout = st.columns(2)
-    if _col_sync.button("☁️ 同步", key="btn_sync", use_container_width=True, help="將目前設定儲存到雲端"):
-        try:
-            from module_storage import save_user_data
-            if save_user_data(_current_user_id):
-                st.toast("✅ 已同步至雲端", icon="☁️")
-        except Exception as _se:
-            st.toast(f"同步失敗：{_se}", icon="⚠️")
+    if _is_cloud():
+        if _col_sync.button("☁️ 同步", key="btn_sync", use_container_width=True, help="將目前設定儲存到雲端"):
+            try:
+                from module_storage import save_user_data
+                if save_user_data(_current_user_id):
+                    st.toast("✅ 已同步至雲端", icon="☁️")
+            except Exception as _se:
+                st.toast(f"同步失敗：{_se}", icon="⚠️")
+    else:
+        if _col_sync.button("💾 儲存", key="btn_sync", use_container_width=True, help="將目前設定儲存至本機帳號"):
+            _local_save_user_data()
+            st.toast("✅ 已儲存至本機帳號", icon="💾")
     if _col_logout.button("登出", key="btn_logout", use_container_width=True):
+        if not _is_cloud():
+            _local_save_user_data()
+            st.session_state.pop("_local_user", None)
         st.session_state.pop("_oauth_user", None)
         st.session_state["user_data_loaded"] = False
         st.rerun()
@@ -2093,6 +2300,8 @@ elif page == "⚙️ 模型與投資偏好":
             new_sel = ["claude-sonnet-4-5"]
 
     st.session_state["selected_models"] = new_sel
+    if not _is_cloud():
+        _local_save_user_data()
     sel_labels = [MODEL_CATALOG.get(m, {}).get("label", m) for m in new_sel]
     st.caption(f"✅ 已選擇：{', '.join(sel_labels)}")
 
@@ -2133,6 +2342,8 @@ elif page == "⚙️ 模型與投資偏好":
             st.error(f"⚠️ 偏好說明過長（{len(custom_text)} 字），請精簡至 {_MAX_PROMPT_LEN} 字以內")
         else:
             st.session_state["custom_prompt"] = custom_text
+            if not _is_cloud():
+                _local_save_user_data()
             st.success("✅ 投資偏好已儲存，下次分析將自動套用")
     if col_clear.button("🗑️ 清除", type="secondary"):
         st.session_state["custom_prompt"] = ""
@@ -2620,6 +2831,15 @@ elif page == "📝 版本更新紀錄":
     st.divider()
 
     _CHANGELOG = [
+        ("v1.30", "桌面版本機帳號系統", [
+            ("新增功能", [
+                "本機帳號登入：桌面版新增帳號密碼登入介面，支援最多 5 組本機帳號，取代 Google OAuth 作為桌面端身份識別方式。",
+                "帳號資料隔離：每位本機帳號的自選股清單、AI 模型選擇、投資偏好、自訂板塊完全獨立，存於 accounts.json，互不影響。",
+                "密碼安全儲存：密碼以 SHA-256 + 隨機 salt 雜湊後儲存，不以明文保存。",
+                "自動資料持久化：自選股變更後自動寫入 accounts.json；登出前自動儲存；「💾 儲存」按鈕可手動儲存全部設定。",
+                "多用戶 watchlist 隔離：load_wl() 在桌面多帳號模式下直接使用 accounts.json 載入的個人資料，避免 watchlist.json 單檔案跨帳號污染。",
+            ]),
+        ]),
         ("v1.29", "公開測試前全面安全強化", [
             ("安全修正", [
                 "OAuth email_verified 驗證：Google 登入流程新增 verified_email 欄位檢查，未驗證信箱的帳號將被拒絕登入。",
@@ -2759,7 +2979,7 @@ elif page == "📝 版本更新紀錄":
     ]
 
     for ver, title, sections in _CHANGELOG:
-        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.29")):
+        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.30")):
             for sec_title, items in sections:
                 st.markdown(f"**{sec_title}**")
                 for item in items:
