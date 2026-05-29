@@ -239,6 +239,11 @@ def _init_state():
         "session_keys": {k: os.getenv(k, "") for k in _ALL_KEY_VARS},
         "setup_done":       False,
         "_custom_sectors":  {},   # 使用者自訂板塊 {key → 名稱}，隨 watchlist 一起持久化
+        # ── PIN 碼保護（雲端用）────────────────────────────────
+        "_pin_unlocked":  False,  # 本次頁面訪問是否已解鎖
+        "_pin_fernet":    None,   # 解鎖後的 Fernet 物件（用於加解密）
+        "_prev_nav_page": "",     # 上一次的導覽頁面（用於偵測頁面切換）
+        "_user_has_pin":  False,  # 使用者是否已設定 PIN
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -249,194 +254,6 @@ _init_state()
 # ── 中繼導覽：在 sidebar（radio）渲染前套用，避免 widget key 衝突 ──
 if "_go_to_page" in st.session_state:
     st.session_state["nav_page"] = st.session_state.pop("_go_to_page")
-
-
-# ════════════════════════════════════════════════════════
-#  雲端環境偵測（提前定義，供登入模組使用）
-# ════════════════════════════════════════════════════════
-
-def _is_cloud() -> bool:
-    """偵測是否在 Streamlit Community Cloud 執行"""
-    return bool(
-        os.getenv("STREAMLIT_SHARING_MODE")
-        or "/mount/src/" in str(Path(__file__).resolve())
-    )
-
-
-# ════════════════════════════════════════════════════════
-#  桌面版本機帳號系統（帳號密碼，最多 5 組）
-# ════════════════════════════════════════════════════════
-import hashlib as _hashlib
-
-_ACCOUNTS_FILE   = Path(__file__).parent / "accounts.json"
-_MAX_LOCAL_ACCTS = 5
-_MIN_PWD_LEN     = 6
-
-
-def _load_accounts() -> dict:
-    """讀取本機帳號資料（accounts.json）"""
-    if _ACCOUNTS_FILE.exists():
-        try:
-            return json.loads(_ACCOUNTS_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {"users": {}}
-
-
-def _save_accounts(data: dict):
-    """寫入本機帳號資料"""
-    try:
-        _ACCOUNTS_FILE.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-    except (PermissionError, OSError):
-        pass
-
-
-def _hash_pwd(password: str, salt: str) -> str:
-    """SHA-256 密碼雜湊（salt + password）"""
-    return _hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-
-
-def _gen_salt() -> str:
-    """生成隨機 salt（32 字元 hex）"""
-    import secrets as _sec
-    return _sec.token_hex(16)
-
-
-def _local_load_user_data(username: str, accounts: dict = None):
-    """從 accounts.json 載入使用者個人資料到 session state（模擬雲端 load_user_data）"""
-    if accounts is None:
-        accounts = _load_accounts()
-    user = accounts.get("users", {}).get(username, {})
-    if user.get("watchlist"):
-        st.session_state["_wl_data"] = user["watchlist"]
-    if "selected_models" in user:
-        st.session_state["selected_models"] = user["selected_models"]
-    if "custom_model_ids" in user:
-        st.session_state["custom_model_ids"] = user["custom_model_ids"]
-    if "custom_prompt" in user:
-        st.session_state["custom_prompt"] = user["custom_prompt"]
-    if "_custom_sectors" in user:
-        st.session_state["_custom_sectors"] = user["_custom_sectors"]
-    st.session_state["user_data_loaded"] = True
-
-
-def _local_save_user_data(username: str = None):
-    """將 session state 中的使用者資料儲存回 accounts.json"""
-    if username is None:
-        username = st.session_state.get("_local_user", "")
-    if not username:
-        return
-    accounts = _load_accounts()
-    if username not in accounts.get("users", {}):
-        return
-    accounts["users"][username].update({
-        "watchlist":        st.session_state.get("_wl_data", {}),
-        "selected_models":  st.session_state.get("selected_models", []),
-        "custom_model_ids": st.session_state.get("custom_model_ids", []),
-        "custom_prompt":    st.session_state.get("custom_prompt", ""),
-        "_custom_sectors":  st.session_state.get("_custom_sectors", {}),
-    })
-    _save_accounts(accounts)
-
-
-def _local_login_ui():
-    """桌面版登入 / 建立帳號介面（未登入時全頁呈現，最後呼叫 st.stop()）"""
-    st.markdown("""
-<div style="text-align:center; padding: 3rem 1rem 1rem;">
-  <div style="font-size:64px">⚔️</div>
-  <h1 style="font-size:26px; font-weight:700; margin:0.8rem 0 0.4rem;">美股投資戰情室</h1>
-  <p style="color:#666; font-size:14px; margin-bottom:1.5rem;">桌面版 · 本機帳號登入</p>
-</div>
-""", unsafe_allow_html=True)
-
-    _lc, _lform, _rc = st.columns([1, 2, 1])
-    with _lform:
-        _tab_login, _tab_reg = st.tabs(["🔑 登入", "📝 建立帳號"])
-
-        # ── 登入分頁 ──────────────────────────────────────
-        with _tab_login:
-            _lu = st.text_input("帳號", key="local_login_user", placeholder="輸入帳號")
-            _lp = st.text_input("密碼", key="local_login_pwd",  type="password", placeholder="輸入密碼")
-            if st.button("🔑 登入", key="local_login_btn", type="primary", use_container_width=True):
-                if not _lu.strip() or not _lp:
-                    st.error("⚠️ 請輸入帳號與密碼")
-                else:
-                    _accts  = _load_accounts()
-                    _udata  = _accts.get("users", {}).get(_lu.strip())
-                    if _udata and _hash_pwd(_lp, _udata["salt"]) == _udata["password_hash"]:
-                        st.session_state["_oauth_user"] = {
-                            "email":          _lu.strip(),
-                            "name":           _lu.strip(),
-                            "picture":        None,
-                            "verified_email": True,
-                        }
-                        st.session_state["_local_user"] = _lu.strip()
-                        _local_load_user_data(_lu.strip(), _accts)
-                        st.rerun()
-                    else:
-                        st.error("❌ 帳號或密碼錯誤")
-
-        # ── 建立帳號分頁 ──────────────────────────────────
-        with _tab_reg:
-            import re as _re_reg
-            _nu  = st.text_input("新帳號",  key="local_reg_user",  placeholder="2–20 字元，英數字或底線")
-            _np  = st.text_input("密碼",    key="local_reg_pwd",   type="password",
-                                 placeholder=f"至少 {_MIN_PWD_LEN} 字元")
-            _np2 = st.text_input("確認密碼", key="local_reg_pwd2",  type="password")
-            if st.button("✅ 建立帳號", key="local_reg_btn", type="primary", use_container_width=True):
-                _accts = _load_accounts()
-                _users = _accts.get("users", {})
-                _err   = None
-                if len(_users) >= _MAX_LOCAL_ACCTS:
-                    _err = f"⚠️ 帳號數已達上限（{_MAX_LOCAL_ACCTS} 組），無法新增"
-                elif not _nu.strip() or not _re_reg.match(r'^[A-Za-z0-9_]{2,20}$', _nu.strip()):
-                    _err = "⚠️ 帳號只允許英數字及底線，長度 2–20 字元"
-                elif _nu.strip() in _users:
-                    _err = "⚠️ 此帳號名稱已存在，請換一個"
-                elif len(_np) < _MIN_PWD_LEN:
-                    _err = f"⚠️ 密碼至少需 {_MIN_PWD_LEN} 字元"
-                elif _np != _np2:
-                    _err = "⚠️ 兩次輸入的密碼不一致"
-                if _err:
-                    st.error(_err)
-                else:
-                    _salt = _gen_salt()
-                    _users[_nu.strip()] = {
-                        "password_hash": _hash_pwd(_np, _salt),
-                        "salt":          _salt,
-                        "watchlist": {
-                            "semiconductor": {}, "tech": {}, "finance": {},
-                            "energy": {},        "defense": {},  "consumer": {},
-                            "etf": {},           "other": {},    "_custom_sectors": {},
-                        },
-                        "selected_models":  [],
-                        "custom_model_ids": [],
-                        "custom_prompt":    "",
-                        "_custom_sectors":  {},
-                    }
-                    _accts["users"] = _users
-                    _save_accounts(_accts)
-                    st.success(f"✅ 帳號「{_nu.strip()}」建立成功！請切換到「登入」頁面登入。")
-
-        st.markdown("""
-<div style="text-align:center; margin-top:1.5rem;">
-  <hr style="opacity:0.2; margin-bottom:1rem;">
-  <span style="color:#999; font-size:12px; line-height:1.8;">
-    🔒 密碼以 SHA-256 雜湊儲存，不以明文保存。<br>
-    每個帳號的資料（自選股、API 金鑰、偏好設定）完全獨立。
-  </span>
-</div>
-""", unsafe_allow_html=True)
-
-    st.stop()
-
-
-# ── 桌面版：本機帳號驗證（未登入時阻擋，已登入則繼續）────
-if not _is_cloud() and not st.session_state.get("_oauth_user"):
-    _local_login_ui()
 
 
 # ════════════════════════════════════════════════════════
@@ -605,11 +422,9 @@ _current_user_id   = _oauth_user.get("email", "unknown")
 _current_user_name = _oauth_user.get("name", _current_user_id)
 _current_user_pic  = _oauth_user.get("picture", None)
 
-# ── 首次登入此 Session：載入使用者資料 ──────────────────────
-# 桌面版：_local_load_user_data() 已在登入時設定 user_data_loaded=True，此段跳過
-# 雲端版：從 Supabase 載入
+# ── 首次登入此 Session：從 Supabase 載入資料 ─────────────
 st.session_state["_current_user_id_cache"] = _current_user_id
-if not st.session_state.get("user_data_loaded") and _is_cloud():
+if not st.session_state.get("user_data_loaded"):
     try:
         from module_storage import load_user_data
         load_user_data(_current_user_id)
@@ -632,6 +447,14 @@ def fetch_stock_quick(symbol: str, name: str):
     if result is None:
         raise RuntimeError(f"yfinance 無法取得 {symbol} 資料")
     return result
+
+
+def _is_cloud() -> bool:
+    """偵測是否在 Streamlit Community Cloud 執行"""
+    return bool(
+        os.getenv("STREAMLIT_SHARING_MODE")
+        or "/mount/src/" in str(Path(__file__).resolve())
+    )
 
 
 def _get_key(env_var: str) -> str:
@@ -684,8 +507,12 @@ def _save_api_key(env_var: str, value: str):
     _uid = st.session_state.get("_current_user_id_cache", "")
     if _uid:
         try:
-            from module_storage import save_user_data
-            save_user_data(_uid)
+            if _is_cloud() and st.session_state.get("_user_has_pin", False):
+                from module_storage import save_api_keys_pin
+                save_api_keys_pin(_uid)
+            else:
+                from module_storage import save_user_data
+                save_user_data(_uid)
         except Exception:
             pass
 
@@ -710,8 +537,12 @@ def _delete_api_key(env_var: str):
     _uid = st.session_state.get("_current_user_id_cache", "")
     if _uid:
         try:
-            from module_storage import save_user_data
-            save_user_data(_uid)
+            if _is_cloud() and st.session_state.get("_user_has_pin", False):
+                from module_storage import save_api_keys_pin
+                save_api_keys_pin(_uid)
+            else:
+                from module_storage import save_user_data
+                save_user_data(_uid)
         except Exception:
             pass
 
@@ -890,32 +721,18 @@ def _wl_has_stocks(data: dict) -> bool:
 def load_wl() -> dict:
     """
     讀取自選股清單。
-    - 桌面多用戶：session state 為唯一來源（_local_load_user_data 已載入）；
-      不再讀 watchlist.json，避免跨帳號污染。
-    - 本機單用戶（無帳號登入）：session state 有股票時直接用；否則從 watchlist.json 讀取
-    - 雲端：每個使用者的 session state 即為其個人清單（Supabase load_user_data 已載入）
+    - 本機：優先 session state（有股票時）；否則從 watchlist.json 讀取
+    - 雲端：每個使用者的 session state 即為其個人清單
     自訂板塊定義存在 data["_custom_sectors"] 裡，與清單一起持久化。
     """
-    # session state 有資料且實際有股票 → 直接用（所有路徑的快取命中）
+    # session state 有資料且實際有股票 → 直接用（雲端主路徑；本機快取）
     if "_wl_data" in st.session_state and _wl_has_stocks(st.session_state["_wl_data"]):
         data = st.session_state["_wl_data"]
         _sync_custom_sectors_from_wl(data)
         for s in get_all_sector_keys():
             data.setdefault(s, {})
         return data
-    # 桌面多用戶：已透過 accounts.json 載入；session state 空表示帳號本來就沒股票，直接用
-    if not _is_cloud() and st.session_state.get("_local_user"):
-        if "_wl_data" in st.session_state:
-            data = st.session_state["_wl_data"]
-        else:
-            data = {s: {} for s in SECTOR_LABELS}
-            data["_custom_sectors"] = {}
-            st.session_state["_wl_data"] = data
-        _sync_custom_sectors_from_wl(data)
-        for s in get_all_sector_keys():
-            data.setdefault(s, {})
-        return data
-    # 本機（無帳號系統）：從 watchlist.json 讀取
+    # 本機：從檔案載入（含 session state 為空時的 fallback）
     if not _is_cloud() and WATCHLIST_FILE.exists():
         try:
             with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
@@ -927,7 +744,7 @@ def load_wl() -> dict:
             return data
         except Exception:
             pass
-    # 雲端 / fallback：session state 無股票（Supabase 空資料）→ 直接用空 session state
+    # 雲端：session state 無股票（Supabase 空資料）→ 直接用空 session state
     if "_wl_data" in st.session_state:
         data = st.session_state["_wl_data"]
         _sync_custom_sectors_from_wl(data)
@@ -956,10 +773,7 @@ def save_wl(data: dict):
             pass
 
 def _cloud_sync_wl():
-    """自選股變更後自動同步（雲端→Supabase；桌面→accounts.json）"""
-    if not _is_cloud():
-        _local_save_user_data()
-        return
+    """自選股變更後自動同步至 Supabase"""
     uid = st.session_state.get("_current_user_id_cache", "")
     if uid:
         try:
@@ -1750,22 +1564,14 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     _col_sync, _col_logout = st.columns(2)
-    if _is_cloud():
-        if _col_sync.button("☁️ 同步", key="btn_sync", use_container_width=True, help="將目前設定儲存到雲端"):
-            try:
-                from module_storage import save_user_data
-                if save_user_data(_current_user_id):
-                    st.toast("✅ 已同步至雲端", icon="☁️")
-            except Exception as _se:
-                st.toast(f"同步失敗：{_se}", icon="⚠️")
-    else:
-        if _col_sync.button("💾 儲存", key="btn_sync", use_container_width=True, help="將目前設定儲存至本機帳號"):
-            _local_save_user_data()
-            st.toast("✅ 已儲存至本機帳號", icon="💾")
+    if _col_sync.button("☁️ 同步", key="btn_sync", use_container_width=True, help="將目前設定儲存到雲端"):
+        try:
+            from module_storage import save_user_data
+            if save_user_data(_current_user_id):
+                st.toast("✅ 已同步至雲端", icon="☁️")
+        except Exception as _se:
+            st.toast(f"同步失敗：{_se}", icon="⚠️")
     if _col_logout.button("登出", key="btn_logout", use_container_width=True):
-        if not _is_cloud():
-            _local_save_user_data()
-            st.session_state.pop("_local_user", None)
         st.session_state.pop("_oauth_user", None)
         st.session_state["user_data_loaded"] = False
         st.rerun()
@@ -1778,6 +1584,14 @@ with st.sidebar:
         label_visibility = "collapsed",
         key = "nav_page",
     )
+
+    # ── PIN 鎖：離開 API 設定頁面時自動上鎖 ──────────────────
+    _api_page = "📚 教學 & API設定"
+    _prev_nav = st.session_state.get("_prev_nav_page", "")
+    if _prev_nav == _api_page and page != _api_page:
+        st.session_state["_pin_unlocked"] = False
+        st.session_state["_pin_fernet"]   = None
+    st.session_state["_prev_nav_page"] = page
 
     st.divider()
 
@@ -2300,8 +2114,6 @@ elif page == "⚙️ 模型與投資偏好":
             new_sel = ["claude-sonnet-4-5"]
 
     st.session_state["selected_models"] = new_sel
-    if not _is_cloud():
-        _local_save_user_data()
     sel_labels = [MODEL_CATALOG.get(m, {}).get("label", m) for m in new_sel]
     st.caption(f"✅ 已選擇：{', '.join(sel_labels)}")
 
@@ -2342,8 +2154,6 @@ elif page == "⚙️ 模型與投資偏好":
             st.error(f"⚠️ 偏好說明過長（{len(custom_text)} 字），請精簡至 {_MAX_PROMPT_LEN} 字以內")
         else:
             st.session_state["custom_prompt"] = custom_text
-            if not _is_cloud():
-                _local_save_user_data()
             st.success("✅ 投資偏好已儲存，下次分析將自動套用")
     if col_clear.button("🗑️ 清除", type="secondary"):
         st.session_state["custom_prompt"] = ""
@@ -2371,241 +2181,356 @@ elif page == "📚 教學 & API設定":
     # ── Tab 1：API 金鑰管理 ──────────────────────────────
     with tab_keys:
         st.subheader("API 金鑰管理")
+
+        # ── PIN 碼保護區（僅雲端）────────────────────────
+        _pin_show_keys = True   # 是否顯示金鑰管理內容
         if _is_cloud():
-            st.info("☁️ **雲端模式**：金鑰僅儲存在本次 Session，離開後需重新輸入。每位使用者各自獨立，互不影響。")
+            _uid_pin   = st.session_state.get("_current_user_id_cache", "")
+            _has_pin   = st.session_state.get("_user_has_pin", False)
+            _unlocked  = st.session_state.get("_pin_unlocked", False)
+
+            if not _has_pin:
+                # ── 未設 PIN：說明 + 設定入口 ──────────
+                st.info(
+                    "🔐 **PIN 碼保護（密碼鎖）**\n\n"
+                    "設定 PIN 碼後，您的 API 金鑰將使用僅您知道的密碼加密儲存，"
+                    "**平台管理員無法讀取您的金鑰**（零知識加密）。\n\n"
+                    "💡 建議先填寫所有 AI 模型與財經資料 API 金鑰，再設定 PIN 碼，操作更方便。"
+                )
+                with st.expander("🔒 設定 PIN 碼保護", expanded=False):
+                    _pc1, _pc2 = st.columns(2)
+                    _setup_pin  = _pc1.text_input("新 PIN 碼（4–8 位數字）", type="password",
+                                                   placeholder="••••", key="setup_pin_input")
+                    _setup_pin2 = _pc2.text_input("確認 PIN 碼", type="password",
+                                                   placeholder="••••", key="setup_pin_confirm")
+                    if st.button("🔒 設定 PIN 碼", type="primary", key="btn_set_pin"):
+                        if not _setup_pin or not _setup_pin2:
+                            st.error("請填寫 PIN 碼與確認 PIN 碼")
+                        elif _setup_pin != _setup_pin2:
+                            st.error("兩次輸入的 PIN 碼不一致")
+                        elif not _setup_pin.isdigit() or not (4 <= len(_setup_pin) <= 8):
+                            st.error("PIN 碼須為 4–8 位純數字")
+                        elif _uid_pin:
+                            from module_storage import set_pin_code
+                            if set_pin_code(_uid_pin, _setup_pin):
+                                st.success("✅ PIN 碼設定成功！API 金鑰已加密保護。")
+                                st.rerun()
+                            else:
+                                st.error("PIN 碼設定失敗，請稍後重試")
+
+            elif not _unlocked:
+                # ── PIN 已設但未解鎖：顯示輸入框 ────────
+                st.warning("🔒 **API 金鑰受 PIN 碼保護**　請輸入 PIN 碼以管理金鑰")
+                _col_pi, _col_pb = st.columns([3, 1])
+                _entered_pin = _col_pi.text_input(
+                    "PIN 碼", type="password", placeholder="請輸入 PIN 碼",
+                    key="unlock_pin_input", label_visibility="collapsed",
+                )
+                if _col_pb.button("🔓 解鎖", type="primary", key="btn_unlock_pin"):
+                    if _entered_pin and _uid_pin:
+                        from module_storage import verify_pin, load_api_keys_pin
+                        _ok, _fernet = verify_pin(_uid_pin, _entered_pin)
+                        if _ok:
+                            st.session_state["_pin_fernet"]   = _fernet
+                            st.session_state["_pin_unlocked"] = True
+                            load_api_keys_pin(_uid_pin, _fernet)
+                            st.rerun()
+                        else:
+                            st.error("❌ PIN 碼錯誤")
+                    else:
+                        st.warning("請輸入 PIN 碼")
+
+                with st.expander("🔑 重設 PIN 碼（需輸入現有 PIN 碼）", expanded=False):
+                    _rp_old  = st.text_input("現有 PIN 碼", type="password",
+                                              placeholder="••••", key="reset_old_pin")
+                    _rp_new  = st.text_input("新 PIN 碼（4–8 位數字）", type="password",
+                                              placeholder="••••", key="reset_new_pin")
+                    _rp_new2 = st.text_input("確認新 PIN 碼", type="password",
+                                              placeholder="••••", key="reset_new_pin2")
+                    if st.button("🔄 重設 PIN 碼", key="btn_reset_pin_locked"):
+                        if not _rp_old or not _rp_new or not _rp_new2:
+                            st.error("請填寫所有欄位")
+                        elif _rp_new != _rp_new2:
+                            st.error("新 PIN 碼兩次輸入不一致")
+                        elif not _rp_new.isdigit() or not (4 <= len(_rp_new) <= 8):
+                            st.error("新 PIN 碼須為 4–8 位純數字")
+                        elif _uid_pin:
+                            from module_storage import reset_pin_code
+                            _ok, _err = reset_pin_code(_uid_pin, _rp_old, _rp_new)
+                            if _ok:
+                                st.success("✅ PIN 碼已重設！")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {_err}")
+
+                _pin_show_keys = False   # 鎖定狀態：隱藏金鑰管理
+
+            else:
+                # ── 已解鎖 ───────────────────────────────
+                _lk_col, _ = st.columns([2, 8])
+                _lk_col.success("🔓 PIN 已解鎖　本次頁面有效")
+                if _lk_col.button("🔒 重新上鎖", key="btn_relock"):
+                    st.session_state["_pin_unlocked"] = False
+                    st.session_state["_pin_fernet"]   = None
+                    st.rerun()
+
+                with st.expander("🔑 重設 PIN 碼", expanded=False):
+                    _ru_old  = st.text_input("現有 PIN 碼", type="password",
+                                              placeholder="••••", key="reset_old_pin_unlocked")
+                    _ru_new  = st.text_input("新 PIN 碼（4–8 位數字）", type="password",
+                                              placeholder="••••", key="reset_new_pin_unlocked")
+                    _ru_new2 = st.text_input("確認新 PIN 碼", type="password",
+                                              placeholder="••••", key="reset_new_pin2_unlocked")
+                    if st.button("🔄 重設 PIN 碼", key="btn_reset_pin_unlocked"):
+                        if not _ru_old or not _ru_new or not _ru_new2:
+                            st.error("請填寫所有欄位")
+                        elif _ru_new != _ru_new2:
+                            st.error("新 PIN 碼兩次輸入不一致")
+                        elif not _ru_new.isdigit() or not (4 <= len(_ru_new) <= 8):
+                            st.error("新 PIN 碼須為 4–8 位純數字")
+                        elif _uid_pin:
+                            from module_storage import reset_pin_code
+                            _ok, _err = reset_pin_code(_uid_pin, _ru_old, _ru_new)
+                            if _ok:
+                                st.success("✅ PIN 碼已重設！")
+                            else:
+                                st.error(f"❌ {_err}")
+
         else:
             st.caption("在此輸入各服務的 API Key，系統將寫入 .env 並立即生效，無需重啟。")
 
-        from module3_llm_summarizer import detect_provider_from_key
+        if _pin_show_keys:
 
-        # ── AI 模型金鑰（智慧單欄輸入）────────────────────
-        st.markdown("### 🤖 AI 模型金鑰")
-        st.caption("貼上任一家 AI 模型的 API Key，系統自動識別供應商並儲存到對應欄位。")
+            from module3_llm_summarizer import detect_provider_from_key
 
-        _AI_PROVIDER_INFO = {
-            "anthropic": {"label": "🟠 Anthropic（Claude）",  "env": "ANTHROPIC_API_KEY", "note": "⭐ 推薦 — 報告品質最佳"},
-            "openai":    {"label": "🟢 OpenAI（GPT-4o）",     "env": "OPENAI_API_KEY",    "note": "可與 Claude 交叉驗證"},
-            "google":    {"label": "🔴 Google（Gemini）",      "env": "GOOGLE_API_KEY",    "note": "Gemini 2.0 Flash 有免費方案"},
-        }
+            # ── AI 模型金鑰（智慧單欄輸入）────────────────────
+            st.markdown("### 🤖 AI 模型金鑰")
+            st.caption("貼上任一家 AI 模型的 API Key，系統自動識別供應商並儲存到對應欄位。")
 
-        # 目前已設定狀態
-        _set_ai = []
-        for _pid, _pinfo in _AI_PROVIDER_INFO.items():
-            _k = _get_key(_pinfo["env"])
-            if _k:
-                _set_ai.append(f"{_pinfo['label']} `...{_k[-6:]}`")
-        if _set_ai:
-            st.success("✅ 已設定：" + "　　".join(_set_ai))
-        else:
-            st.warning("⚠️ 尚未設定任何 AI 模型金鑰。")
+            _AI_PROVIDER_INFO = {
+                "anthropic": {"label": "🟠 Anthropic（Claude）",  "env": "ANTHROPIC_API_KEY", "note": "⭐ 推薦 — 報告品質最佳"},
+                "openai":    {"label": "🟢 OpenAI（GPT-4o）",     "env": "OPENAI_API_KEY",    "note": "可與 Claude 交叉驗證"},
+                "google":    {"label": "🔴 Google（Gemini）",      "env": "GOOGLE_API_KEY",    "note": "Gemini 2.0 Flash 有免費方案"},
+            }
 
-        smart_key_input = st.text_input(
-            "貼上 AI API Key（自動識別供應商）",
-            value="",
-            type="password",
-            placeholder="sk-ant-...  /  sk-proj-...  /  AIza...",
-            key="smart_api_key_input",
-        )
-
-        # 即時偵測提示 + 模型選擇器
-        _SMART_MODEL_LIST = {
-            "anthropic": {
-                "latest": [
-                    ("claude-opus-4-7",  "🔵 Claude Opus 4.7",    "旗艦，最強推理"),
-                    ("claude-sonnet-4-6","🟠 Claude Sonnet 4.6 ⭐","推薦，速度/品質最佳平衡"),
-                    ("claude-haiku-4-5", "🟡 Claude Haiku 4.5",   "輕量快速，最省費用"),
-                ],
-                "stable": [
-                    ("claude-opus-4-5",  "🔵 Claude Opus 4.5",    "前代旗艦"),
-                    ("claude-sonnet-4-5","🟠 Claude Sonnet 4.5",  "前代均衡"),
-                    ("claude-haiku-3-5", "🟡 Claude Haiku 3.5",   "前代輕量"),
-                ],
-            },
-            "openai": {
-                "latest": [
-                    ("gpt-5.5",      "🟢 GPT-5.5",       "旗艦，最強智能"),
-                    ("gpt-5.4",      "🟢 GPT-5.4 ⭐",    "推薦，均衡性價比"),
-                    ("gpt-5.4-mini", "🟩 GPT-5.4 Mini",  "輕量快速，最省費用"),
-                ],
-                "stable": [
-                    ("gpt-4o",       "🟢 GPT-4o",        "前代旗艦"),
-                    ("gpt-4o-mini",  "🟩 GPT-4o Mini",   "前代輕量"),
-                    ("o3",           "🔷 o3",            "前代推理增強"),
-                ],
-            },
-            "google": {
-                "latest": [
-                    ("gemini-3.1-pro-preview", "🔴 Gemini 3.1 Pro",       "旗艦（付費）"),
-                    ("gemini-3-flash-preview",  "🔶 Gemini 3 Flash ⭐",   "推薦，免費方案可用"),
-                    ("gemini-3.1-flash-lite",   "🟡 Gemini 3.1 Flash Lite","最省費用，免費方案可用"),
-                ],
-                "stable": [
-                    ("gemini-2.5-pro",        "🔴 Gemini 2.5 Pro",        "前代旗艦（付費）"),
-                    ("gemini-2.5-flash",      "🔶 Gemini 2.5 Flash",      "前代均衡，免費方案可用"),
-                    ("gemini-2.5-flash-lite", "🟡 Gemini 2.5 Flash Lite", "前代輕量，免費方案可用"),
-                ],
-            },
-        }
-
-        if smart_key_input.strip():
-            _sprov, _senv = detect_provider_from_key(smart_key_input.strip())
-            if _sprov:
-                _sinfo = _AI_PROVIDER_INFO[_sprov]
-                st.success(f"✅ 偵測到：{_sinfo['label']}　　{_sinfo['note']}")
-
-                # 偵測到供應商後，直接顯示該供應商的模型選擇
-                st.markdown(f"**選擇要使用的模型（{_sinfo['label']}）**")
-                _cur_sel_smart = list(st.session_state.get("selected_models", []))
-                _new_sel_smart = [m for m in _cur_sel_smart]  # copy
-
-                _sm_data = _SMART_MODEL_LIST.get(_sprov, {})
-                _sc1, _sc2 = st.columns(2)
-                with _sc1:
-                    st.caption("🆕 最新版")
-                    for _smid, _slabel, _snote in _sm_data.get("latest", []):
-                        _sch = st.checkbox(
-                            _slabel, value=_smid in _cur_sel_smart,
-                            key=f"smart_chk_{_smid}", help=_snote,
-                        )
-                        if _sch:
-                            if _smid not in _new_sel_smart:
-                                _new_sel_smart.append(_smid)
-                        else:
-                            if _smid in _new_sel_smart:
-                                _new_sel_smart.remove(_smid)
-                with _sc2:
-                    st.caption("🔒 前代穩定版")
-                    for _smid, _slabel, _snote in _sm_data.get("stable", []):
-                        _sch = st.checkbox(
-                            _slabel, value=_smid in _cur_sel_smart,
-                            key=f"smart_chk_{_smid}", help=_snote,
-                        )
-                        if _sch:
-                            if _smid not in _new_sel_smart:
-                                _new_sel_smart.append(_smid)
-                        else:
-                            if _smid in _new_sel_smart:
-                                _new_sel_smart.remove(_smid)
-
-                st.session_state["selected_models"] = _new_sel_smart if _new_sel_smart else _cur_sel_smart
-
+            # 目前已設定狀態
+            _set_ai = []
+            for _pid, _pinfo in _AI_PROVIDER_INFO.items():
+                _k = _get_key(_pinfo["env"])
+                if _k:
+                    _set_ai.append(f"{_pinfo['label']} `...{_k[-6:]}`")
+            if _set_ai:
+                st.success("✅ 已設定：" + "　　".join(_set_ai))
             else:
-                st.warning("⚠️ 無法識別供應商，請確認 Key 格式（支援：`sk-ant-`、`sk-proj-`、`sk-`、`AIza`）")
+                st.warning("⚠️ 尚未設定任何 AI 模型金鑰。")
 
-        _col_save_ai, _ = st.columns([2, 8])
-        if _col_save_ai.button("💾 驗證並儲存 AI 金鑰", type="primary", key="save_smart_key"):
-            _k = smart_key_input.strip()
-            if _k:
-                _sprov, _senv = detect_provider_from_key(_k)
+            smart_key_input = st.text_input(
+                "貼上 AI API Key（自動識別供應商）",
+                value="",
+                type="password",
+                placeholder="sk-ant-...  /  sk-proj-...  /  AIza...",
+                key="smart_api_key_input",
+            )
+
+            # 即時偵測提示 + 模型選擇器
+            _SMART_MODEL_LIST = {
+                "anthropic": {
+                    "latest": [
+                        ("claude-opus-4-7",  "🔵 Claude Opus 4.7",    "旗艦，最強推理"),
+                        ("claude-sonnet-4-6","🟠 Claude Sonnet 4.6 ⭐","推薦，速度/品質最佳平衡"),
+                        ("claude-haiku-4-5", "🟡 Claude Haiku 4.5",   "輕量快速，最省費用"),
+                    ],
+                    "stable": [
+                        ("claude-opus-4-5",  "🔵 Claude Opus 4.5",    "前代旗艦"),
+                        ("claude-sonnet-4-5","🟠 Claude Sonnet 4.5",  "前代均衡"),
+                        ("claude-haiku-3-5", "🟡 Claude Haiku 3.5",   "前代輕量"),
+                    ],
+                },
+                "openai": {
+                    "latest": [
+                        ("gpt-5.5",      "🟢 GPT-5.5",       "旗艦，最強智能"),
+                        ("gpt-5.4",      "🟢 GPT-5.4 ⭐",    "推薦，均衡性價比"),
+                        ("gpt-5.4-mini", "🟩 GPT-5.4 Mini",  "輕量快速，最省費用"),
+                    ],
+                    "stable": [
+                        ("gpt-4o",       "🟢 GPT-4o",        "前代旗艦"),
+                        ("gpt-4o-mini",  "🟩 GPT-4o Mini",   "前代輕量"),
+                        ("o3",           "🔷 o3",            "前代推理增強"),
+                    ],
+                },
+                "google": {
+                    "latest": [
+                        ("gemini-3.1-pro-preview", "🔴 Gemini 3.1 Pro",       "旗艦（付費）"),
+                        ("gemini-3-flash-preview",  "🔶 Gemini 3 Flash ⭐",   "推薦，免費方案可用"),
+                        ("gemini-3.1-flash-lite",   "🟡 Gemini 3.1 Flash Lite","最省費用，免費方案可用"),
+                    ],
+                    "stable": [
+                        ("gemini-2.5-pro",        "🔴 Gemini 2.5 Pro",        "前代旗艦（付費）"),
+                        ("gemini-2.5-flash",      "🔶 Gemini 2.5 Flash",      "前代均衡，免費方案可用"),
+                        ("gemini-2.5-flash-lite", "🟡 Gemini 2.5 Flash Lite", "前代輕量，免費方案可用"),
+                    ],
+                },
+            }
+
+            if smart_key_input.strip():
+                _sprov, _senv = detect_provider_from_key(smart_key_input.strip())
                 if _sprov:
-                    with st.spinner(f"驗證 {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰中…"):
-                        _ok, _vmsg = _validate_api_key(_senv, _k)
-                    if _ok:
-                        _save_api_key(_senv, _k)
-                        st.success(_vmsg + "　金鑰已儲存並生效！")
-                        st.rerun()
-                    else:
-                        st.error(_vmsg)
+                    _sinfo = _AI_PROVIDER_INFO[_sprov]
+                    st.success(f"✅ 偵測到：{_sinfo['label']}　　{_sinfo['note']}")
+
+                    # 偵測到供應商後，直接顯示該供應商的模型選擇
+                    st.markdown(f"**選擇要使用的模型（{_sinfo['label']}）**")
+                    _cur_sel_smart = list(st.session_state.get("selected_models", []))
+                    _new_sel_smart = [m for m in _cur_sel_smart]  # copy
+
+                    _sm_data = _SMART_MODEL_LIST.get(_sprov, {})
+                    _sc1, _sc2 = st.columns(2)
+                    with _sc1:
+                        st.caption("🆕 最新版")
+                        for _smid, _slabel, _snote in _sm_data.get("latest", []):
+                            _sch = st.checkbox(
+                                _slabel, value=_smid in _cur_sel_smart,
+                                key=f"smart_chk_{_smid}", help=_snote,
+                            )
+                            if _sch:
+                                if _smid not in _new_sel_smart:
+                                    _new_sel_smart.append(_smid)
+                            else:
+                                if _smid in _new_sel_smart:
+                                    _new_sel_smart.remove(_smid)
+                    with _sc2:
+                        st.caption("🔒 前代穩定版")
+                        for _smid, _slabel, _snote in _sm_data.get("stable", []):
+                            _sch = st.checkbox(
+                                _slabel, value=_smid in _cur_sel_smart,
+                                key=f"smart_chk_{_smid}", help=_snote,
+                            )
+                            if _sch:
+                                if _smid not in _new_sel_smart:
+                                    _new_sel_smart.append(_smid)
+                            else:
+                                if _smid in _new_sel_smart:
+                                    _new_sel_smart.remove(_smid)
+
+                    st.session_state["selected_models"] = _new_sel_smart if _new_sel_smart else _cur_sel_smart
+
                 else:
-                    st.error("❌ 無法識別供應商，請確認 Key 格式正確")
-            else:
-                st.warning("請先輸入 API Key")
+                    st.warning("⚠️ 無法識別供應商，請確認 Key 格式（支援：`sk-ant-`、`sk-proj-`、`sk-`、`AIza`）")
 
-        # ── 已設定的 AI 金鑰刪除區 ────────────────────────
-        _has_any_ai = any(_get_key(i["env"]) for i in _AI_PROVIDER_INFO.values())
-        if _has_any_ai:
-            st.markdown("**已設定的 AI 金鑰：**")
-            _dcols = st.columns(len(_AI_PROVIDER_INFO))
-            for _di, (_dpid, _dpinfo) in enumerate(_AI_PROVIDER_INFO.items()):
-                _dk = _get_key(_dpinfo["env"])
-                if _dk:
-                    with _dcols[_di]:
-                        st.caption(f"{_dpinfo['label']}　`...{_dk[-6:]}`")
-                        if st.button(f"🗑️ 刪除", key=f"del_ai_{_dpid}", use_container_width=True):
-                            _delete_api_key(_dpinfo["env"])
-                            st.success(f"✅ {_dpinfo['label']} 金鑰已刪除")
-                            st.rerun()
-
-        with st.expander("🔧 進階：手動逐一設定各供應商金鑰", expanded=False):
-            for _env_var, _label, _placeholder, _note in [
-                ("ANTHROPIC_API_KEY", "🟠 Anthropic（Claude）",  "sk-ant-...",  "⭐ 推薦 — 報告品質最佳"),
-                ("OPENAI_API_KEY",    "🟢 OpenAI（GPT-4o）",     "sk-proj-...", "可與 Claude 交叉驗證"),
-                ("GOOGLE_API_KEY",    "🔴 Google（Gemini）",      "AIza...",     "Gemini 2.0 Flash 有免費方案"),
-            ]:
-                _cur = _get_key(_env_var)
-                _masked = f"...{_cur[-8:]}" if len(_cur) > 8 else ("已設定" if _cur else "")
-                _adv_set = bool(_cur)
-                st.caption(f"**{_label}** — {_note}")
-                _ac1, _ac2, _ac3 = st.columns([5, 1, 1])
-                _anv = _ac1.text_input(
-                    f"_{_env_var}_adv",
-                    value="", placeholder=_masked if _masked else _placeholder,
-                    type="password", label_visibility="collapsed",
-                    key=f"adv_inp_{_env_var}",
-                )
-                if _ac2.button("💾", key=f"adv_save_{_env_var}", help="驗證並儲存", use_container_width=True):
-                    if _anv.strip():
-                        with st.spinner(f"驗證 {_label} 金鑰中…"):
-                            _ok, _vmsg = _validate_api_key(_env_var, _anv.strip())
+            _col_save_ai, _ = st.columns([2, 8])
+            if _col_save_ai.button("💾 驗證並儲存 AI 金鑰", type="primary", key="save_smart_key"):
+                _k = smart_key_input.strip()
+                if _k:
+                    _sprov, _senv = detect_provider_from_key(_k)
+                    if _sprov:
+                        with st.spinner(f"驗證 {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰中…"):
+                            _ok, _vmsg = _validate_api_key(_senv, _k)
                         if _ok:
-                            _save_api_key(_env_var, _anv.strip())
-                            st.success(_vmsg + "　已儲存")
+                            _save_api_key(_senv, _k)
+                            st.success(_vmsg + "　金鑰已儲存並生效！")
                             st.rerun()
                         else:
                             st.error(_vmsg)
                     else:
-                        st.warning("請輸入有效的 Key")
-                if _adv_set and _ac3.button("🗑️", key=f"adv_del_{_env_var}", help="刪除此金鑰", use_container_width=True):
-                    _delete_api_key(_env_var)
-                    st.success(f"✅ {_label} 金鑰已刪除")
+                        st.error("❌ 無法識別供應商，請確認 Key 格式正確")
+                else:
+                    st.warning("請先輸入 API Key")
+
+            # ── 已設定的 AI 金鑰刪除區 ────────────────────────
+            _has_any_ai = any(_get_key(i["env"]) for i in _AI_PROVIDER_INFO.values())
+            if _has_any_ai:
+                st.markdown("**已設定的 AI 金鑰：**")
+                _dcols = st.columns(len(_AI_PROVIDER_INFO))
+                for _di, (_dpid, _dpinfo) in enumerate(_AI_PROVIDER_INFO.items()):
+                    _dk = _get_key(_dpinfo["env"])
+                    if _dk:
+                        with _dcols[_di]:
+                            st.caption(f"{_dpinfo['label']}　`...{_dk[-6:]}`")
+                            if st.button(f"🗑️ 刪除", key=f"del_ai_{_dpid}", use_container_width=True):
+                                _delete_api_key(_dpinfo["env"])
+                                st.success(f"✅ {_dpinfo['label']} 金鑰已刪除")
+                                st.rerun()
+
+            with st.expander("🔧 進階：手動逐一設定各供應商金鑰", expanded=False):
+                for _env_var, _label, _placeholder, _note in [
+                    ("ANTHROPIC_API_KEY", "🟠 Anthropic（Claude）",  "sk-ant-...",  "⭐ 推薦 — 報告品質最佳"),
+                    ("OPENAI_API_KEY",    "🟢 OpenAI（GPT-4o）",     "sk-proj-...", "可與 Claude 交叉驗證"),
+                    ("GOOGLE_API_KEY",    "🔴 Google（Gemini）",      "AIza...",     "Gemini 2.0 Flash 有免費方案"),
+                ]:
+                    _cur = _get_key(_env_var)
+                    _masked = f"...{_cur[-8:]}" if len(_cur) > 8 else ("已設定" if _cur else "")
+                    _adv_set = bool(_cur)
+                    st.caption(f"**{_label}** — {_note}")
+                    _ac1, _ac2, _ac3 = st.columns([5, 1, 1])
+                    _anv = _ac1.text_input(
+                        f"_{_env_var}_adv",
+                        value="", placeholder=_masked if _masked else _placeholder,
+                        type="password", label_visibility="collapsed",
+                        key=f"adv_inp_{_env_var}",
+                    )
+                    if _ac2.button("💾", key=f"adv_save_{_env_var}", help="驗證並儲存", use_container_width=True):
+                        if _anv.strip():
+                            with st.spinner(f"驗證 {_label} 金鑰中…"):
+                                _ok, _vmsg = _validate_api_key(_env_var, _anv.strip())
+                            if _ok:
+                                _save_api_key(_env_var, _anv.strip())
+                                st.success(_vmsg + "　已儲存")
+                                st.rerun()
+                            else:
+                                st.error(_vmsg)
+                        else:
+                            st.warning("請輸入有效的 Key")
+                    if _adv_set and _ac3.button("🗑️", key=f"adv_del_{_env_var}", help="刪除此金鑰", use_container_width=True):
+                        _delete_api_key(_env_var)
+                        st.success(f"✅ {_label} 金鑰已刪除")
+                        st.rerun()
+                    st.markdown("")
+
+            st.divider()
+
+            # ── 財經資料 API（各自獨立）──────────────────────
+            st.markdown("### 📊 財經資料 API（選填）")
+            st.caption("以下為增強型資料源，不設定也可正常使用 Yahoo Finance 基礎數據。")
+
+            for env_var, label, placeholder, note in [
+                ("MARKETAUX_API_KEY", "📰 Marketaux（財經新聞）",    "xxx...xxx", "高品質財經新聞（100次/天）"),
+                ("FINNHUB_KEY",       "📊 Finnhub（個股數據/新聞）", "xxx...xxx", "個股新聞、推薦評等、財務指標"),
+                ("FMP_KEY",           "🏦 FMP（多年估值預測）",       "xxx...xxx", "3年 EPS、F P/E、成長率預估"),
+                ("ALPHA_VANTAGE_KEY", "📈 Alpha Vantage（備援）",     "xxx...xxx", "ForwardPE 備援（25次/天）"),
+            ]:
+                cur_val = _get_key(env_var)
+                masked  = f"...{cur_val[-8:]}" if len(cur_val) > 8 else ("已設定" if cur_val else "")
+                _is_set = bool(cur_val)
+
+                st.markdown(f"**{label}** 🔵 選填")
+                st.caption(note)
+
+                col_inp, col_save, col_del = st.columns([5, 1, 1])
+                new_val = col_inp.text_input(
+                    f"_{env_var}",
+                    value            = "",
+                    placeholder      = masked if masked else placeholder,
+                    type             = "password",
+                    label_visibility = "collapsed",
+                    key              = f"inp_{env_var}",
+                )
+                if col_save.button("💾", key=f"save_{env_var}", type="secondary", help="驗證並儲存", use_container_width=True):
+                    if new_val.strip():
+                        with st.spinner(f"驗證 {label} 金鑰中…"):
+                            _ok, _msg = _validate_api_key(env_var, new_val.strip())
+                        if _ok:
+                            _save_api_key(env_var, new_val.strip())
+                            st.success(_msg)
+                            st.rerun()
+                        else:
+                            st.error(_msg)
+                    else:
+                        st.warning("請先輸入 Key 值")
+                if _is_set and col_del.button("🗑️", key=f"del_{env_var}", type="secondary", help="刪除此金鑰", use_container_width=True):
+                    _delete_api_key(env_var)
+                    st.success(f"✅ {label} 金鑰已刪除")
                     st.rerun()
                 st.markdown("")
-
-        st.divider()
-
-        # ── 財經資料 API（各自獨立）──────────────────────
-        st.markdown("### 📊 財經資料 API（選填）")
-        st.caption("以下為增強型資料源，不設定也可正常使用 Yahoo Finance 基礎數據。")
-
-        for env_var, label, placeholder, note in [
-            ("MARKETAUX_API_KEY", "📰 Marketaux（財經新聞）",    "xxx...xxx", "高品質財經新聞（100次/天）"),
-            ("FINNHUB_KEY",       "📊 Finnhub（個股數據/新聞）", "xxx...xxx", "個股新聞、推薦評等、財務指標"),
-            ("FMP_KEY",           "🏦 FMP（多年估值預測）",       "xxx...xxx", "3年 EPS、F P/E、成長率預估"),
-            ("ALPHA_VANTAGE_KEY", "📈 Alpha Vantage（備援）",     "xxx...xxx", "ForwardPE 備援（25次/天）"),
-        ]:
-            cur_val = _get_key(env_var)
-            masked  = f"...{cur_val[-8:]}" if len(cur_val) > 8 else ("已設定" if cur_val else "")
-            _is_set = bool(cur_val)
-
-            st.markdown(f"**{label}** 🔵 選填")
-            st.caption(note)
-
-            col_inp, col_save, col_del = st.columns([5, 1, 1])
-            new_val = col_inp.text_input(
-                f"_{env_var}",
-                value            = "",
-                placeholder      = masked if masked else placeholder,
-                type             = "password",
-                label_visibility = "collapsed",
-                key              = f"inp_{env_var}",
-            )
-            if col_save.button("💾", key=f"save_{env_var}", type="secondary", help="驗證並儲存", use_container_width=True):
-                if new_val.strip():
-                    with st.spinner(f"驗證 {label} 金鑰中…"):
-                        _ok, _msg = _validate_api_key(env_var, new_val.strip())
-                    if _ok:
-                        _save_api_key(env_var, new_val.strip())
-                        st.success(_msg)
-                        st.rerun()
-                    else:
-                        st.error(_msg)
-                else:
-                    st.warning("請先輸入 Key 值")
-            if _is_set and col_del.button("🗑️", key=f"del_{env_var}", type="secondary", help="刪除此金鑰", use_container_width=True):
-                _delete_api_key(env_var)
-                st.success(f"✅ {label} 金鑰已刪除")
-                st.rerun()
-            st.markdown("")
 
     # ── Tab 2（已移除：雲端部署） ─────────────────────────
     if False:
@@ -2831,13 +2756,12 @@ elif page == "📝 版本更新紀錄":
     st.divider()
 
     _CHANGELOG = [
-        ("v1.30", "桌面版本機帳號系統", [
-            ("新增功能", [
-                "本機帳號登入：桌面版新增帳號密碼登入介面，支援最多 5 組本機帳號，取代 Google OAuth 作為桌面端身份識別方式。",
-                "帳號資料隔離：每位本機帳號的自選股清單、AI 模型選擇、投資偏好、自訂板塊完全獨立，存於 accounts.json，互不影響。",
-                "密碼安全儲存：密碼以 SHA-256 + 隨機 salt 雜湊後儲存，不以明文保存。",
-                "自動資料持久化：自選股變更後自動寫入 accounts.json；登出前自動儲存；「💾 儲存」按鈕可手動儲存全部設定。",
-                "多用戶 watchlist 隔離：load_wl() 在桌面多帳號模式下直接使用 accounts.json 載入的個人資料，避免 watchlist.json 單檔案跨帳號污染。",
+        ("v1.30", "PIN 碼零知識 API 金鑰保護", [
+            ("安全新增", [
+                "PIN 碼密碼鎖：使用者可在「API 金鑰管理」頁面設定 4–8 位數字 PIN，API 金鑰以 PBKDF2-HMAC-SHA256（26 萬次迭代）衍生的 Fernet 金鑰加密存入 Supabase，平台管理員無法讀取（零知識架構）。",
+                "PIN 保護機制：設定 PIN 後，新增、刪除、儲存、檢視金鑰皆需先解鎖；同一頁面訪問解鎖一次即可操作所有功能；切換頁面或重整後自動重新上鎖。",
+                "PIN 重設：鎖定狀態與解鎖狀態皆可重設 PIN，前提須先輸入現有 PIN 正確驗證；重設後所有金鑰以新 PIN 重新加密。",
+                "向後相容：未設定 PIN 的用戶保持原有行為（伺服器端 ENCRYPTION_KEY 加密），不影響現有使用。",
             ]),
         ]),
         ("v1.29", "公開測試前全面安全強化", [
