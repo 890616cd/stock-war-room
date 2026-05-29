@@ -228,7 +228,7 @@ def _init_state():
         "running":        False,
         "run_step":       "",
         "selected_stock": None,
-        "selected_models":     ["claude-sonnet-4-6"],
+        "selected_models":     [],
         "custom_prompt":       "",
         "multi_reports":       {},
         "stock_multi_reports": {},
@@ -323,20 +323,30 @@ def _exchange_google_code(code: str) -> dict:
 _qp = st.query_params
 if "code" in _qp and not st.session_state.get("_oauth_user"):
     # ── CSRF 防護：驗證 state 參數 ────────────────────────
+    # 注意：_expected_state 為空代表 session 已遺失（伺服器重啟/重新載入），
+    # 此時無法驗證合法性，應拒絕並引導使用者重新登入，而非跳過驗證。
     _expected_state = st.session_state.get("_oauth_state", "")
     _received_state = _qp.get("state", "")
-    if _expected_state and _received_state != _expected_state:
+    if not _expected_state:
+        st.warning("⚠️ 登入 Session 已過期，請重新點擊登入按鈕。")
+        st.query_params.clear()
+        st.stop()
+    if _received_state != _expected_state:
         st.error("⚠️ 登入驗證失敗（state 不符），可能為 CSRF 攻擊或 session 逾時，請重新整理頁面再試。")
         st.query_params.clear()
         st.stop()
     # ── 換取 token & 使用者資訊 ───────────────────────────
     with st.spinner("登入中，請稍候…"):
         _user_info = _exchange_google_code(_qp["code"])
-    if _user_info.get("email"):
+    if _user_info.get("email") and _user_info.get("verified_email", False):
         st.session_state["_oauth_user"] = _user_info
         st.session_state.pop("_oauth_state", None)   # 用完即清除
         st.query_params.clear()
         st.rerun()
+    elif _user_info.get("email") and not _user_info.get("verified_email", False):
+        st.error("⚠️ 您的 Google 帳號信箱尚未驗證，請先至 Google 帳號設定完成信箱驗證後再登入。")
+        st.query_params.clear()
+        st.stop()
     else:
         st.error("⚠️ Google 登入失敗，請重試。")
         st.query_params.clear()
@@ -777,7 +787,7 @@ def run_full_analysis(prog=None):
                 call_model, format_final_report, MODEL_CATALOG,
             )
             custom_p  = st.session_state.get("custom_prompt", "")
-            sel_models = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
+            sel_models = st.session_state.get("selected_models", [])
             sys_p  = build_system_prompt(assessment, market_data, custom_p)
             user_p = build_user_prompt(market_data)
             multi: dict = {}
@@ -1306,7 +1316,7 @@ def render_stock_detail(symbol: str, name: str):
 
             # ── Step 3：多模型呼叫 ────────────────────────
             from module3_llm_summarizer import call_model, MODEL_CATALOG
-            sel = st.session_state.get("selected_models", ["claude-sonnet-4-6"])
+            sel = st.session_state.get("selected_models", [])
             custom_p = st.session_state.get("custom_prompt", "").strip()
 
             # 戰術建議版塊
@@ -1411,14 +1421,21 @@ with st.sidebar:
     st.caption("AI 副官系統 · 手動觸發架構")
 
     # ── 登入使用者資訊 ────────────────────────────────────
+    import html as _html_mod
     st.divider()
-    _pic_html = (
-        f"<img src='{_current_user_pic}' width='28' height='28' "
-        f"style='border-radius:50%; vertical-align:middle; margin-right:6px'>"
-        if _current_user_pic else "👤 "
-    )
+    _safe_name = _html_mod.escape(str(_current_user_name))
+    # 頭像 URL：僅接受 Google 官方圖片域名，其他一律顯示預設圖示
+    _safe_pic_html = "👤 "
+    if _current_user_pic and isinstance(_current_user_pic, str):
+        _pic_url = str(_current_user_pic)
+        if _pic_url.startswith("https://lh3.googleusercontent.com/") or \
+           _pic_url.startswith("https://googleusercontent.com/"):
+            _safe_pic_html = (
+                f"<img src='{_html_mod.escape(_pic_url)}' width='28' height='28' "
+                f"style='border-radius:50%; vertical-align:middle; margin-right:6px'>"
+            )
     st.markdown(
-        f"<span style='font-size:12px'>{_pic_html}{_current_user_name}</span>",
+        f"<span style='font-size:12px'>{_safe_pic_html}{_safe_name}</span>",
         unsafe_allow_html=True,
     )
     _col_sync, _col_logout = st.columns(2)
@@ -1706,8 +1723,13 @@ elif page == "📋 自選股管理":
 
             submitted = st.form_submit_button("➕ 加入清單", type="primary", use_container_width=True)
             if submitted:
+                import re as _re_sym
                 if not new_sym:
                     st.error("請填入股票代號")
+                elif not _re_sym.match(r'^[A-Z0-9.\-\^]{1,12}$', new_sym):
+                    st.error("⚠️ 股票代號格式不正確（只允許大寫字母、數字、. - ^，最多 12 字元）")
+                elif len(new_name) > 50:
+                    st.error("⚠️ 股票名稱過長（最多 50 字元）")
                 else:
                     msg = wl_add(new_sym, new_name, new_sec)
                     if msg.startswith("✅"):
@@ -1844,7 +1866,7 @@ elif page == "⚙️ 模型與投資偏好":
         },
     }
 
-    cur_sel = list(st.session_state.get("selected_models", ["claude-sonnet-4-6"]))
+    cur_sel = list(st.session_state.get("selected_models", []))
     new_sel = []
 
     has_any_key = any(_get_key(m["env"]) for m in _PROVIDER_META.values())
@@ -1983,10 +2005,15 @@ elif page == "⚙️ 模型與投資偏好":
         placeholder = "例：我重點關注半導體板塊的AI算力需求，特別注意 NVDA、AMD 的出貨量與數據中心營收比例...",
         key         = "custom_prompt_input",
     )
+    _MAX_PROMPT_LEN = 500
     col_save, col_clear, _ = st.columns([2, 2, 6])
+    st.caption(f"字數：{len(custom_text)} / {_MAX_PROMPT_LEN}")
     if col_save.button("💾 儲存偏好", type="primary"):
-        st.session_state["custom_prompt"] = custom_text
-        st.success("✅ 投資偏好已儲存，下次分析將自動套用")
+        if len(custom_text) > _MAX_PROMPT_LEN:
+            st.error(f"⚠️ 偏好說明過長（{len(custom_text)} 字），請精簡至 {_MAX_PROMPT_LEN} 字以內")
+        else:
+            st.session_state["custom_prompt"] = custom_text
+            st.success("✅ 投資偏好已儲存，下次分析將自動套用")
     if col_clear.button("🗑️ 清除", type="secondary"):
         st.session_state["custom_prompt"] = ""
         st.rerun()

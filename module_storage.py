@@ -26,24 +26,30 @@ def _get_fernet():
     except Exception:
         pass
     if not secret:
-        # fallback：不加密（不建議用於生產）
-        secret = "war-room-default-enc-key-change-me"
+        # 未設定加密金鑰時拒絕操作，避免使用不安全的預設值
+        raise RuntimeError(
+            "ENCRYPTION_KEY 未設定。請在 Streamlit Secrets 加入一組隨機字串，"
+            "例如：ENCRYPTION_KEY = \"$(python -c 'import secrets; print(secrets.token_hex(32))')\""
+        )
     key_bytes = hashlib.sha256(secret.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key_bytes))
 
 
 def encrypt_value(plaintext: str) -> str:
-    """將明文字串加密，返回 base64 密文"""
+    """將明文字串加密，返回 base64 密文；ENCRYPTION_KEY 未設定時回傳空字串並記錄警告"""
     if not plaintext:
         return ""
     try:
         return _get_fernet().encrypt(plaintext.encode()).decode()
+    except RuntimeError as e:
+        st.warning(f"⚠️ API Key 無法加密儲存：{e}")
+        return ""
     except Exception:
         return ""
 
 
 def decrypt_value(ciphertext: str) -> str:
-    """解密 base64 密文，返回明文字串"""
+    """解密 base64 密文，返回明文字串；解密失敗時回傳空字串"""
     if not ciphertext:
         return ""
     try:
@@ -152,7 +158,7 @@ def save_user_data(user_id: str) -> bool:
         payload = {
             "user_id":          user_id,
             "watchlist":        st.session_state.get("_wl_data", {}),
-            "selected_models":  st.session_state.get("selected_models", ["claude-sonnet-4-6"]),
+            "selected_models":  st.session_state.get("selected_models", []),
             "custom_model_ids": st.session_state.get("custom_model_ids", []),
             "custom_prompt":    st.session_state.get("custom_prompt", ""),
             "encrypted_keys":   encrypted_keys,
