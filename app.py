@@ -298,6 +298,79 @@ h1,h2,h3,h4,h5,h6,
 .stTabs [data-baseweb="tab"] {{ color:var(--text)!important; }}
 .stTabs [data-baseweb="tab"][aria-selected="true"] {{ color:var(--text)!important; border-bottom-color:var(--brand)!important; }}
 
+/* ═══ Alert / Info / Warning / Error 文字 ═══ */
+[data-testid="stAlert"] div, [data-testid="stAlert"] p,
+[data-testid="stAlert"] span {{ color:inherit!important; }}
+div[data-testid="stAlert"][role="alert"] {{
+    background:{'rgba(250,200,50,0.12)' if _dk else '#fffbf0'}!important;
+    border-color:{'#f0a500' if _dk else '#f0a500'}!important;
+    color:{'#fde68a' if _dk else '#7a4500'}!important;
+}}
+div[data-testid="stAlert"][data-baseweb="notification"] {{
+    background:{'rgba(59,130,246,0.12)' if _dk else '#eff6ff'}!important;
+}}
+
+/* ═══ Expander 標題列完整暗色 ═══ */
+[data-testid="stExpander"] details summary {{
+    background:{'#1E293B' if _dk else '#F8F9FA'}!important;
+    color:var(--text)!important;
+    border-radius:12px!important;
+}}
+[data-testid="stExpander"] details[open] summary {{
+    border-radius:12px 12px 0 0!important;
+}}
+[data-testid="stExpander"] details summary:hover {{
+    background:var(--card2)!important;
+}}
+[data-testid="stExpander"] details > div {{
+    background:var(--card)!important;
+    color:var(--text)!important;
+    border-radius:0 0 12px 12px!important;
+}}
+
+/* ═══ DataFrame 表格完整暗色 ═══ */
+[data-testid="stDataFrame"] iframe {{
+    background:transparent!important;
+    color-scheme:{'dark' if _dk else 'light'}!important;
+}}
+[data-testid="stDataFrame"] [data-testid="stDataFrameResizable"] {{
+    background:var(--card)!important;
+    border-color:var(--border)!important;
+}}
+/* glide-data-grid 格式覆蓋 */
+.dvn-scroller {{ background:var(--card)!important; }}
+
+/* ═══ Button 主色文字保護 ═══ */
+[data-testid="stButton"] button[kind="primary"],
+[data-testid="stButton"] button[data-testid="baseButton-primary"] {{
+    background:{'#1E40AF' if _dk else '#1E40AF'}!important;
+    color:#ffffff!important;
+}}
+/* 次要按鈕 hover 效果 */
+[data-testid="stButton"] button:not([kind="primary"]):hover {{
+    background:var(--card2)!important;
+    border-color:var(--border)!important;
+}}
+
+/* ═══ 自訂資料表格（取代 st.dataframe，完整深淺色支援）═══ */
+.data-tbl {{ width:100%; border-collapse:collapse; font-size:13px; }}
+.data-tbl th {{
+    background:var(--card2); color:var(--muted);
+    font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+    padding:8px 12px; text-align:left;
+    border-bottom:2px solid var(--border);
+}}
+.data-tbl td {{
+    padding:9px 12px; color:var(--text);
+    border-bottom:1px solid var(--border);
+    font-family:'Courier New',monospace; font-size:13px;
+}}
+.data-tbl tr:last-child td {{ border-bottom:none; }}
+.data-tbl tr:hover td {{ background:var(--card2); transition:background .1s; }}
+.data-tbl .up  {{ color:var(--up)!important; }}
+.data-tbl .dn  {{ color:var(--down)!important; }}
+.data-tbl .mut {{ color:var(--muted)!important; font-size:11px; }}
+
 /* ═══ 手機響應式 ═══ */
 @media (max-width: 768px) {{
     .block-container, [data-testid="stMainBlockContainer"] {{
@@ -1139,6 +1212,24 @@ def run_full_analysis(prog=None):
 #  個股詳細頁面
 # ════════════════════════════════════════════════════════
 
+def _html_table(rows: list[list], headers: list[str]) -> str:
+    """產生完整尊重 CSS 變數的 HTML 表格（取代 st.dataframe）"""
+    th = "".join(f"<th>{h}</th>" for h in headers)
+    tbody = ""
+    for row in rows:
+        cells = ""
+        for i, cell in enumerate(row):
+            s = str(cell)
+            cls = ""
+            if i > 0:  # 數值欄位套色
+                if s.startswith("+"):   cls = ' class="up"'
+                elif s.startswith("-"): cls = ' class="dn"'
+                elif s in ("N/A", "—"): cls = ' class="mut"'
+            cells += f"<td{cls}>{s}</td>"
+        tbody += f"<tr>{cells}</tr>"
+    return f'<table class="data-tbl"><thead><tr>{th}</tr></thead><tbody>{tbody}</tbody></table>'
+
+
 def render_stock_detail(symbol: str, name: str):
     """個股詳細頁面：K線圖 + 估值指標 + 近期新聞（獨立於主分析運行）"""
     from module_stock_chart import fetch_chart_data, build_stock_chart
@@ -1204,6 +1295,20 @@ def render_stock_detail(symbol: str, name: str):
         df  = fetch_chart_data(stock.symbol, period="1y")
         from module_stock_chart import build_macd_chart, build_kdj_chart, build_rsi_chart
         fig = build_stock_chart(df, stock.symbol, stock.name)
+    # 深色模式：更新圖表樣式
+    _is_dk_chart = st.session_state.get("_theme", "light") == "dark"
+    if _is_dk_chart:
+        _dk_layout = dict(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(15,23,42,0.4)",
+            font=dict(color="#94A3B8"),
+            xaxis=dict(gridcolor="rgba(51,65,85,0.5)", linecolor="rgba(51,65,85,0.4)",
+                       tickfont=dict(color="#94A3B8")),
+            yaxis=dict(gridcolor="rgba(51,65,85,0.5)", linecolor="rgba(51,65,85,0.4)",
+                       tickfont=dict(color="#94A3B8")),
+            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#94A3B8")),
+        )
+        fig.update_layout(**_dk_layout)
     _chart_cfg = {
         "scrollZoom":     True,
         "displayModeBar": True,
@@ -1215,14 +1320,18 @@ def render_stock_detail(symbol: str, name: str):
 
     # ── 技術指標（可摺疊）──────────────────────────────────
     if not df.empty:
+        def _apply_dk(f):
+            if _is_dk_chart:
+                f.update_layout(**_dk_layout)
+            return f
         with st.expander("📉 MACD（12, 26, 9）", expanded=False):
-            st.plotly_chart(build_macd_chart(df), use_container_width=True,
+            st.plotly_chart(_apply_dk(build_macd_chart(df)), use_container_width=True,
                             config=_chart_cfg)
         with st.expander("📊 KDJ（9, 3, 3）", expanded=False):
-            st.plotly_chart(build_kdj_chart(df), use_container_width=True,
+            st.plotly_chart(_apply_dk(build_kdj_chart(df)), use_container_width=True,
                             config=_chart_cfg)
         with st.expander("📈 RSI（6, 12, 24）", expanded=False):
-            st.plotly_chart(build_rsi_chart(df), use_container_width=True,
+            st.plotly_chart(_apply_dk(build_rsi_chart(df)), use_container_width=True,
                             config=_chart_cfg)
 
     st.divider()
@@ -1254,39 +1363,33 @@ def render_stock_detail(symbol: str, name: str):
     col_t1, col_t2 = st.columns(2)
     with col_t1:
         st.caption("價格 / 波動 / 估值")
-        st.dataframe(
-            pd.DataFrame({
-                "指標": ["開盤價", "最高價", "最低價", "收盤價", "Beta（相對大盤波動）",
-                         _cur_val_label, _hist_val_label],
-                "數值": [
-                    f"${stock.open_price:,.2f}"  if stock.open_price  else "N/A",
-                    f"${stock.high_price:,.2f}"  if stock.high_price  else "N/A",
-                    f"${stock.low_price:,.2f}"   if stock.low_price   else "N/A",
-                    f"${stock.price:,.2f}",
-                    f"{stock.beta:.2f}"          if stock.beta        else "N/A",
-                    _cur_val,
-                    _hist_val,
-                ],
-            }),
-            hide_index=True, use_container_width=True,
-        )
+        st.markdown(_html_table(
+            headers=["指標", "數值"],
+            rows=[
+                ["開盤價",          f"${stock.open_price:,.2f}"  if stock.open_price  else "N/A"],
+                ["最高價",          f"${stock.high_price:,.2f}"  if stock.high_price  else "N/A"],
+                ["最低價",          f"${stock.low_price:,.2f}"   if stock.low_price   else "N/A"],
+                ["收盤價",          f"${stock.price:,.2f}"],
+                ["Beta（相對大盤波動）", f"{stock.beta:.2f}"     if stock.beta        else "N/A"],
+                [_cur_val_label,    _cur_val],
+                [_hist_val_label,   _hist_val],
+            ]
+        ), unsafe_allow_html=True)
     with col_t2:
         st.caption("成交量 / 52週區間")
-        st.dataframe(
-            pd.DataFrame({
-                "指標": ["成交量", "均量（10日）", "量比", "52週高點", "52週低點", "距52週高", "52週區間位置"],
-                "數值": [
-                    _fmt_vol(stock.volume),
-                    _fmt_vol(stock.avg_volume),
-                    f"{stock.volume_ratio:.2f} 倍",
-                    f"${stock.week52_high:,.2f}",
-                    f"${stock.week52_low:,.2f}",
-                    f"{stock.pct_from_52w_high:.1f}%",
-                    f"{stock.range_position:.0f}%",
-                ],
-            }),
-            hide_index=True, use_container_width=True,
-        )
+        _pct_hi = f"{stock.pct_from_52w_high:.1f}%"
+        st.markdown(_html_table(
+            headers=["指標", "數值"],
+            rows=[
+                ["成交量",       _fmt_vol(stock.volume)],
+                ["均量（10日）", _fmt_vol(stock.avg_volume)],
+                ["量比",         f"{stock.volume_ratio:.2f} 倍"],
+                ["52週高點",     f"${stock.week52_high:,.2f}"],
+                ["52週低點",     f"${stock.week52_low:,.2f}"],
+                ["距52週高",     _pct_hi],
+                ["52週區間位置", f"{stock.range_position:.0f}%"],
+            ]
+        ), unsafe_allow_html=True)
 
     st.divider()
 
@@ -1318,22 +1421,20 @@ def render_stock_detail(symbol: str, name: str):
     def _fmt_eps(v):
         return f"${v:.2f}" if v is not None else "N/A"
 
-    st.dataframe(
-        pd.DataFrame({
-            "財年":          ["2026", "2027", "2028（通常無數據）"],
-            "預估 EPS":      [_fmt_eps(stock.eps_est_2026),
-                              _fmt_eps(stock.eps_est_2027),
-                              _fmt_eps(stock.eps_est_2028)],
-            pe_label:        pe_disp,
-            "年營收成長率":   [_fmt_pct(stock.rev_growth_2026),
-                              _fmt_pct(stock.rev_growth_2027),
-                              _fmt_pct(stock.rev_growth_2028)],
-            "EPS 年成長率":  [_fmt_pct(stock.eps_growth_2026),
-                              _fmt_pct(stock.eps_growth_2027),
-                              _fmt_pct(stock.eps_growth_2028)],
-        }),
-        hide_index=True, use_container_width=True,
-    )
+    st.markdown(_html_table(
+        headers=["財年", "預估 EPS", pe_label, "年營收成長率", "EPS 年成長率"],
+        rows=[
+            ["2026",
+             _fmt_eps(stock.eps_est_2026), pe_disp[0],
+             _fmt_pct(stock.rev_growth_2026), _fmt_pct(stock.eps_growth_2026)],
+            ["2027",
+             _fmt_eps(stock.eps_est_2027), pe_disp[1],
+             _fmt_pct(stock.rev_growth_2027), _fmt_pct(stock.eps_growth_2027)],
+            ["2028（通常無數據）",
+             _fmt_eps(stock.eps_est_2028), pe_disp[2],
+             _fmt_pct(stock.rev_growth_2028), _fmt_pct(stock.eps_growth_2028)],
+        ]
+    ), unsafe_allow_html=True)
 
     # ── 分析師推薦分布（Finnhub）─────────────────────────
     has_rec = any(v is not None for v in [
@@ -1446,7 +1547,7 @@ def render_stock_detail(symbol: str, name: str):
             import requests as _req, feedparser as _fp, re, email.utils
             from datetime import timedelta
 
-            st.caption("⏳ 預計需要 20–45 秒（依模型與網路速度），請勿關閉頁面")
+            st.toast(f"⏳ 正在生成 {stock.symbol} 分析，請稍候 20–45 秒…", icon="🔄")
             _sprog = st.progress(0, text=f"📰 正在搜尋 {stock.symbol} 近期新聞...")
 
             # ── Step 1：抓取個股近 3 日新聞 ────────────
@@ -1765,10 +1866,13 @@ fmp_key_sb     = _get_key("FMP_KEY")
 
 
 def _render_navbar(back_to=None, back_label="返回主控台"):
-    """頂部導覽列：固定 HTML（含主題/同步/登出按鈕）+ 可選返回鍵"""
+    """頂部導覽列：固定 HTML 視覺層 + JS 定位 Streamlit 互動按鈕"""
     import html as _h
+    import streamlit.components.v1 as _comp
     _is_d = st.session_state.get("_theme", "light") == "dark"
     _icon_theme = "☀️" if _is_d else "🌙"
+    _btn_color  = "#E2E8F0" if _is_d else "#334155"
+    _btn_hover  = "rgba(255,255,255,0.14)" if _is_d else "rgba(0,0,0,0.07)"
 
     # 使用者頭像 HTML
     _pic_html = ""
@@ -1778,19 +1882,19 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
            _purl.startswith("https://googleusercontent.com/"):
             _pic_html = (
                 f"<img src='{_h.escape(_purl)}' width='28' height='28' "
-                "style='border-radius:50%;border:2px solid var(--border);vertical-align:middle;'>"
+                "style='border-radius:50%;border:2px solid rgba(128,128,128,0.4);vertical-align:middle;'>"
             )
-
     _safe_nm = _h.escape(str(_current_user_name))
 
-    # 固定視覺導覽列（右側僅顯示頭像與名稱，按鈕由 Streamlit 透過 CSS 定位覆蓋）
+    # ── 固定視覺導覽列 ─────────────────────────────────────
+    # 右側留出 ~160px 給 JS 定位的 Streamlit 按鈕
     st.markdown(f"""
 <div class="war-navbar">
     <div class="nav-brand">
         <div class="nav-logo">⚔️</div>
         <span class="nav-title">美股投資戰情室</span>
     </div>
-    <div class="nav-right">
+    <div class="nav-right" style="margin-right:168px">
         <div class="nav-user">
             {_pic_html or "👤"}
             <span>{_safe_nm}</span>
@@ -1799,18 +1903,20 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
 </div>
 """, unsafe_allow_html=True)
 
-    # 返回按鈕（僅子頁面顯示）
+    # ── 返回按鈕（文件流，子頁面才顯示）─────────────────────
     if back_to:
         if st.button(f"← {back_label}", key="nb_back"):
             st.session_state["nav_page"] = back_to
             st.session_state["selected_stock"] = None
             st.rerun()
 
-    # 哨兵 + 三顆動作按鈕（CSS 定位至導覽列右側）
+    # ── 哨兵 + 真實 Streamlit 動作按鈕 ──────────────────────
     st.markdown('<div class="nav-btn-sentinel"></div>', unsafe_allow_html=True)
     _ba, _bb, _bc = st.columns([1, 1, 1])
     if _ba.button(_icon_theme, key="nb_theme", help="切換深淺色模式"):
-        st.session_state["_theme"] = "light" if _is_d else "dark"
+        _new_theme = "light" if _is_d else "dark"
+        st.session_state["_theme"] = _new_theme
+        st.toast("☀️ 已切換至淺色模式" if _new_theme == "light" else "🌙 已切換至深色模式", icon="✅")
         st.rerun()
     if _bb.button("☁️", key="nb_sync", help="同步資料至雲端"):
         try:
@@ -1823,6 +1929,94 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
         st.session_state.pop("_oauth_user", None)
         st.session_state["user_data_loaded"] = False
         st.rerun()
+
+    # ── JavaScript：從 iframe 存取父視窗 DOM，將按鈕定位至導覽列 ──
+    _comp.html(f"""
+<script>
+(function() {{
+    try {{
+        var pd = window.parent.document;
+
+        function findHBlock(sentinel) {{
+            // 從 sentinel 往上找第一個 data-testid 元素，再找下一個 stHorizontalBlock 兄弟
+            var el = sentinel;
+            for (var i = 0; i < 5; i++) {{
+                el = el.parentElement;
+                if (!el) return null;
+                if (el.hasAttribute('data-testid')) {{
+                    var sib = el.nextElementSibling;
+                    var n = 0;
+                    while (sib && n++ < 8) {{
+                        if (sib.getAttribute('data-testid') === 'stHorizontalBlock') return {{mc: el, hb: sib}};
+                        sib = sib.nextElementSibling;
+                    }}
+                    return null;
+                }}
+            }}
+            return null;
+        }}
+
+        function applyNavStyle() {{
+            var sentinel = pd.querySelector('.nav-btn-sentinel');
+            if (!sentinel) return false;
+            var found = findHBlock(sentinel);
+            if (!found) return false;
+            var mc = found.mc, hb = found.hb;
+
+            // 隱藏哨兵容器
+            mc.style.cssText = 'height:0;overflow:hidden;margin:0;padding:0;';
+
+            // 定位按鈕列至導覽列右側
+            Object.assign(hb.style, {{
+                position:'fixed', top:'10px', right:'28px', left:'auto',
+                width:'auto', zIndex:'1002', display:'flex',
+                alignItems:'center', gap:'2px', flexWrap:'nowrap',
+                margin:'0', padding:'0', background:'transparent'
+            }});
+
+            // 縮緊每個 column
+            hb.querySelectorAll('[data-testid="stColumn"]').forEach(function(c){{
+                Object.assign(c.style, {{flex:'none', minWidth:'0', padding:'0', width:'auto'}});
+            }});
+
+            // 美化按鈕
+            hb.querySelectorAll('[data-testid="stButton"] button').forEach(function(b, i){{
+                Object.assign(b.style, {{
+                    background:'transparent',
+                    border:'1px solid transparent',
+                    color:'{_btn_color}',
+                    padding: i===2 ? '4px 10px' : '4px 9px',
+                    fontSize: i===2 ? '12px' : '15px',
+                    fontWeight: i===2 ? '600' : 'normal',
+                    borderRadius:'8px', height:'34px', minHeight:'34px',
+                    lineHeight:'1', cursor:'pointer', whiteSpace:'nowrap',
+                    boxShadow:'none', transition:'background 0.12s'
+                }});
+                b.onmouseover = function(){{ this.style.background = '{_btn_hover}'; }};
+                b.onmouseout  = function(){{ this.style.background = 'transparent'; }};
+            }});
+            return true;
+        }}
+
+        // 嘗試套用，最多重試 30 次（3 秒）
+        var tries = 0;
+        function tryApply() {{
+            if (applyNavStyle()) return;
+            if (++tries < 30) setTimeout(tryApply, 100);
+        }}
+        tryApply();
+
+        // 監聽 DOM 變化（Streamlit 重渲染時重新套用），防抖 50ms
+        var debounceTimer;
+        new window.parent.MutationObserver(function() {{
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(applyNavStyle, 50);
+        }}).observe(pd.body, {{childList: true, subtree: true}});
+
+    }} catch(e) {{ /* cross-origin 時靜默失敗，CSS :has() 作為備援 */ }}
+}})();
+</script>
+""", height=0)
 
 
 
@@ -1900,9 +2094,10 @@ elif page == "🏠 戰情室主控台":
         run_disabled = not bool(api_key)
         if st.button("🚀 啟動完整分析", disabled=run_disabled,
                      use_container_width=True, type="primary", key="btn_run_analysis"):
-            st.caption("⏳ 預計需要 30–90 秒（依模型與網路速度），請勿關閉頁面")
+            st.toast("⏳ 分析啟動中，請稍候 30–90 秒…", icon="🔄")
             prog = st.progress(0, text="初始化中...")
             run_full_analysis(prog=prog)
+            st.toast("✅ 分析完成！", icon="🎯")
             st.rerun()
     with _hint_col:
         if not api_key:
