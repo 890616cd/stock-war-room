@@ -1661,57 +1661,39 @@ def render_stock_detail(symbol: str, name: str):
     elif st.session_state[tactic_key]:
         # ── 已生成：顯示結果（支援多模型）──────────
         cached = st.session_state[tactic_key]
-        _stk_hd_html = (
-            f'<div class="report-section-hd">'
-            f'<div class="report-section-hd-icon">🎯</div>'
-            f'<div>'
-            f'<div class="report-section-hd-title">AI 戰術建議 ＆ 新聞分析報告 — {stock.symbol}</div>'
-            f'<div class="report-section-hd-sub">以下為 AI 根據市場環境與個股數據生成的操作建議，僅供參考，不構成投資建議</div>'
-            f'</div>'
-            f'</div>'
-        )
-        with st.container(border=True):              # ← 真實外框
-            st.markdown(_stk_hd_html, unsafe_allow_html=True)
-            if isinstance(cached, dict):
+        if isinstance(cached, dict):
                 valid_r = {mid: r for mid, r in cached.items() if not r.get("error")}
                 for mid, r in cached.items():
                     if r.get("error"):
                         st.error(f"⚠️ {r.get('label', mid)} 生成失敗：{r['error']}")
                 if valid_r:
-                    if len(valid_r) == 1:
-                        mid, r = next(iter(valid_r.items()))
+                    for mid, r in valid_r.items():
+                        # 每個模型各自一個外框（header+meta+內容合成單一 st.markdown）
                         st.markdown(
-                            f'<div class="report-meta-bar">'
-                            f'{r.get("icon","🤖")} <strong>{r.get("label","")}</strong>'
-                            f'<span class="report-meta-sep">|</span>'
-                            f'⏱ {r.get("elapsed_sec","?")} 秒'
-                            f'<span class="report-meta-sep">|</span>'
-                            f'📥 輸入 {r.get("input_tokens",0):,} tokens'
-                            f'<span class="report-meta-sep">|</span>'
-                            f'📤 輸出 {r.get("output_tokens",0):,} tokens'
-                            f'</div>',
+                            _mk_rpt_frame(
+                                icon="🎯",
+                                title=f"AI 戰術建議 ＆ 新聞分析 — {stock.symbol}"
+                                      + (f"  ({r.get('label','')})" if len(valid_r) > 1 else ""),
+                                subtitle="以下為 AI 根據市場環境與個股數據生成的操作建議，僅供參考，不構成投資建議",
+                                r=r,
+                                report_text=r.get("text", ""),
+                            ),
                             unsafe_allow_html=True,
                         )
-                        st.markdown(r.get("text", ""))
-                    else:
-                        tab_labels = [f"{r.get('icon','🤖')} {r.get('label', mid)}" for mid, r in valid_r.items()]
-                        tabs = st.tabs(tab_labels)
-                        for tab, (mid, r) in zip(tabs, valid_r.items()):
-                            with tab:
-                                st.markdown(
-                                    f'<div class="report-meta-bar">'
-                                    f'⏱ 生成 <strong>{r.get("elapsed_sec","?")} 秒</strong>'
-                                    f'<span class="report-meta-sep">|</span>'
-                                    f'📥 輸入 <strong>{r.get("input_tokens",0):,}</strong> tokens'
-                                    f'<span class="report-meta-sep">|</span>'
-                                    f'📤 輸出 <strong>{r.get("output_tokens",0):,}</strong> tokens'
-                                    f'</div>',
-                                    unsafe_allow_html=True,
-                                )
-                                st.markdown(r.get("text", ""))
-            else:
-                # 向後相容舊字串格式
-                st.markdown(cached)
+        else:
+            # 向後相容舊字串格式
+            _r_compat = {"icon": "🎯", "label": "AI", "elapsed_sec": "—",
+                         "input_tokens": 0, "output_tokens": 0}
+            st.markdown(
+                _mk_rpt_frame(
+                    icon="🎯",
+                    title=f"AI 戰術建議 ＆ 新聞分析 — {stock.symbol}",
+                    subtitle="以下為 AI 根據市場環境與個股數據生成的操作建議，僅供參考，不構成投資建議",
+                    r=_r_compat,
+                    report_text=cached,
+                ),
+                unsafe_allow_html=True,
+            )
         if st.button("🔄 重新生成", key=f"regen_{stock.symbol}", type="secondary"):
             st.session_state[tactic_key] = None
             st.session_state[news_key_s] = None
@@ -2063,6 +2045,63 @@ finnhub_key_sb = _get_key("FINNHUB_KEY")
 fmp_key_sb     = _get_key("FMP_KEY")
 
 
+# ────────────────────────────────────────────────────────
+#  報告外框 HTML 產生器（單一 st.markdown 呼叫，邊框真實可見）
+# ────────────────────────────────────────────────────────
+def _mk_rpt_frame(icon: str, title: str, subtitle: str,
+                  r: dict, report_text: str) -> str:
+    """
+    把 header + 元資訊條 + 報告內容合成為一個 HTML 字串，
+    由呼叫端用 st.markdown(..., unsafe_allow_html=True) 一次渲染。
+    這是讓邊框真正包住 Streamlit markdown 內容的唯一可靠方式。
+    """
+    _is_d = st.session_state.get("_theme", "light") == "dark"
+    # 外框樣式
+    _bg    = "#182035" if _is_d else "#FAFAFA"
+    _bdr   = "rgba(212,175,55,0.65)" if _is_d else "rgba(212,175,55,0.50)"
+    _shd   = "0 8px 36px rgba(0,0,0,0.50)" if _is_d else "0 6px 24px rgba(0,0,0,0.09)"
+    # Header 條樣式
+    _hbg   = "rgba(212,175,55,0.11)" if _is_d else "rgba(212,175,55,0.07)"
+    _hbdr  = "rgba(212,175,55,0.32)" if _is_d else "rgba(212,175,55,0.24)"
+    _txt   = "#E2E8F0" if _is_d else "#334155"
+    _muted = "#94A3B8" if _is_d else "#64748B"
+    # Meta bar 樣式
+    _mbg   = "rgba(255,255,255,0.04)" if _is_d else "rgba(0,0,0,0.04)"
+    _mbdr  = "rgba(255,255,255,0.07)" if _is_d else "rgba(0,0,0,0.06)"
+    _sep   = f'<span style="color:{"#475569" if _is_d else "#CBD5E1"};margin:0 4px;">│</span>'
+
+    hd_html = (
+        f'<div style="display:flex;align-items:center;gap:13px;padding:13px 16px;'
+        f'background:linear-gradient(135deg,{_hbg},{_hbg});'
+        f'border:1px solid {_hbdr};border-radius:12px;margin-bottom:14px;">'
+        f'<div style="font-size:22px;line-height:1;flex-shrink:0;">{icon}</div>'
+        f'<div><div style="font-size:15px;font-weight:700;color:{_txt};margin-bottom:2px;">{title}</div>'
+        f'<div style="font-size:11px;color:{_muted};line-height:1.4;">{subtitle}</div></div>'
+        f'</div>'
+    )
+
+    meta_html = (
+        f'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px 10px;'
+        f'padding:7px 12px;background:{_mbg};border:1px solid {_mbdr};'
+        f'border-radius:9px;font-size:12px;color:{_muted};margin-bottom:12px;">'
+        f'{r.get("icon","🤖")} <strong style="color:{_txt};">{r.get("label","")}</strong>{_sep}'
+        f'⏱ {r.get("elapsed_sec","?")} 秒{_sep}'
+        f'📥 {r.get("input_tokens",0):,} tokens{_sep}'
+        f'📤 {r.get("output_tokens",0):,} tokens'
+        f'</div>'
+    )
+
+    # 整個外框：header + meta + 報告 markdown（兩個換行讓 Streamlit 正確解析 markdown 區塊）
+    return (
+        f'<div style="border:2px solid {_bdr};border-radius:20px;padding:24px;'
+        f'background:{_bg};box-shadow:{_shd};margin-bottom:8px;">'
+        f'{hd_html}'
+        f'{meta_html}'
+        f'\n\n{report_text}\n\n'
+        f'</div>'
+    )
+
+
 def _render_navbar(back_to=None, back_label="返回主控台"):
     """頂部導覽列：單一 st.columns() 列，CSS nth-child(2) 使其 sticky"""
     import html as _h
@@ -2283,15 +2322,6 @@ elif page == "🏠 戰情室主控台":
                 st.rerun()
 
     # ── AI 市場分析報告 ──────────────────────────────────
-    _RPT_HD_MAIN = (
-        '<div class="report-section-hd">'
-        '<div class="report-section-hd-icon">🤖</div>'
-        '<div>'
-        '<div class="report-section-hd-title">AI 市場戰情報告</div>'
-        '<div class="report-section-hd-sub">以下為 AI 根據大盤數據、法說逐字稿與近期新聞生成的完整市場分析報告</div>'
-        '</div>'
-        '</div>'
-    )
     multi_rpts = st.session_state.get("multi_reports", {})
     if multi_rpts:
         st.divider()
@@ -2300,44 +2330,47 @@ elif page == "🏠 戰情室主控台":
         for mid, r in errors.items():
             st.error(f"⚠️ {r.get('label', mid)} 生成失敗：{r['error']}")
         if valid:
-            with st.container(border=True):          # ← 真實外框
-                st.markdown(_RPT_HD_MAIN, unsafe_allow_html=True)
-                if len(valid) == 1:
-                    mid, r = next(iter(valid.items()))
+            if len(valid) == 1:
+                mid, r = next(iter(valid.items()))
+                # 單一模型：整個報告（header+meta+內容）合成一個 st.markdown 呼叫
+                st.markdown(
+                    _mk_rpt_frame(
+                        icon="🤖",
+                        title="AI 市場戰情報告",
+                        subtitle="以下為 AI 根據大盤數據、法說逐字稿與近期新聞生成的完整市場分析報告",
+                        r=r,
+                        report_text=r.get("report", r.get("text", "")),
+                    ),
+                    unsafe_allow_html=True,
+                )
+            else:
+                # 多模型：各模型各自獨立外框（比 tabs 更可靠）
+                for mid, r in valid.items():
                     st.markdown(
-                        f'<div class="report-meta-bar">'
-                        f'{r.get("icon","🤖")} <strong>{r.get("label","")}</strong>'
-                        f'<span class="report-meta-sep">|</span>'
-                        f'⏱ {r.get("elapsed_sec","?")} 秒'
-                        f'<span class="report-meta-sep">|</span>'
-                        f'📥 輸入 {r.get("input_tokens",0):,} tokens'
-                        f'<span class="report-meta-sep">|</span>'
-                        f'📤 輸出 {r.get("output_tokens",0):,} tokens'
-                        f'</div>',
+                        _mk_rpt_frame(
+                            icon=r.get("icon", "🤖"),
+                            title=f"AI 市場戰情報告 — {r.get('label', mid)}",
+                            subtitle="以下為 AI 根據大盤數據、法說逐字稿與近期新聞生成的完整市場分析報告",
+                            r=r,
+                            report_text=r.get("report", r.get("text", "")),
+                        ),
                         unsafe_allow_html=True,
                     )
-                    st.markdown(r.get("report", r.get("text", "")))
-                else:
-                    tab_labels = [f"{r.get('icon','🤖')} {r.get('label', mid)}" for mid, r in valid.items()]
-                    tabs = st.tabs(tab_labels)
-                    for tab, (mid, r) in zip(tabs, valid.items()):
-                        with tab:
-                            st.markdown(
-                                f'<div class="report-meta-bar">'
-                                f'⏱ 生成 <strong>{r.get("elapsed_sec","?")} 秒</strong>'
-                                f'<span class="report-meta-sep">|</span>'
-                                f'📥 輸入 <strong>{r.get("input_tokens",0):,}</strong> tokens'
-                                f'<span class="report-meta-sep">|</span>'
-                                f'📤 輸出 <strong>{r.get("output_tokens",0):,}</strong> tokens'
-                                f'</div>',
-                                unsafe_allow_html=True,
-                            )
-                            st.markdown(r.get("report", r.get("text", "")))
     elif st.session_state.get("market_analysis"):
         st.divider()
-        with st.container(border=True):              # ← 真實外框
-            st.markdown(_RPT_HD_MAIN, unsafe_allow_html=True)
-            st.markdown(st.session_state["market_analysis"])
+        # 向後相容（舊格式無 model dict）
+        _r_compat = {"icon": "🤖", "label": "AI", "elapsed_sec": "—",
+                     "input_tokens": 0, "output_tokens": 0}
+        st.markdown(
+            _mk_rpt_frame(
+                icon="🤖",
+                title="AI 市場戰情報告",
+                subtitle="以下為 AI 根據大盤數據生成的完整市場分析報告",
+                r=_r_compat,
+                report_text=st.session_state["market_analysis"],
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 
