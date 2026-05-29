@@ -15,6 +15,29 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
 
+
+def _get_key(env_var: str) -> str:
+    """
+    安全讀取 API Key：
+      1. session_keys（各用戶完全隔離，雲端主路徑）
+      2. st.secrets（部署者預設值）
+      3. os.environ（僅本機 CLI 執行時的 fallback）
+    不直接寫入 os.environ，確保雲端多用戶不互相污染。
+    """
+    try:
+        import streamlit as st
+        val = st.session_state.get("session_keys", {}).get(env_var, "")
+        if val:
+            return val
+        try:
+            if env_var in st.secrets:
+                return str(st.secrets[env_var])
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return os.getenv(env_var, "")
+
 from module1_news_engine import (
     fetch_categorized_news,
     format_news_for_llm,
@@ -406,7 +429,7 @@ def _fetch_ticker_data(symbol: str, name: str) -> Optional[StockData]:
 
         # ── Finnhub 分析師推薦（買/持/賣）────────────────────
         rec_strong_buy = rec_buy = rec_hold = rec_sell = rec_strong_sell = None
-        finnhub_key_env = os.getenv("FINNHUB_KEY", "")
+        finnhub_key_env = _get_key("FINNHUB_KEY")
         if finnhub_key_env:
             rec = _fetch_finnhub_rec(symbol, finnhub_key_env)
             if rec:
@@ -417,7 +440,7 @@ def _fetch_ticker_data(symbol: str, name: str) -> Optional[StockData]:
                 rec_strong_sell = rec.get("rec_strong_sell")
 
         # P1：FMP /stable/analyst-estimates（最完整，有 2028 數據）
-        fmp_key = os.getenv("FMP_KEY", "")
+        fmp_key = _get_key("FMP_KEY")
         if fmp_key:
             fmp = _fmp_stable_estimates(symbol, fmp_key, price, mkt_cap)
             eps_est_2026    = fmp.get("eps_est_2026")
@@ -645,8 +668,8 @@ def run_data_fetcher() -> FullMarketData:
 
     # 新聞（三類別有機探索 + Regex 標的標注）
     print("\n  正在抓取三大類別新聞...")
-    marketaux_key = os.getenv("MARKETAUX_API_KEY", "")
-    newsapi_key   = os.getenv("NEWS_API_KEY", "")
+    marketaux_key = _get_key("MARKETAUX_API_KEY")
+    newsapi_key   = _get_key("NEWS_API_KEY")
 
     if marketaux_key:
         print("  [新聞來源] Marketaux API（財經專用）")

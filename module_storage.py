@@ -168,5 +168,7 @@ def save_user_data(user_id: str) -> bool:
         return True
 
     except Exception as e:
-        st.warning(f"⚠️ 雲端同步失敗：{e}")
+        import logging as _log
+        _log.error("save_user_data failed", exc_info=True)
+        st.warning("⚠️ 雲端同步失敗，請稍後重試")
         return False

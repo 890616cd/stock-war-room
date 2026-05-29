@@ -812,8 +812,10 @@ def run_full_analysis(prog=None):
         _upd(100, "✅ 分析完成")
 
     except Exception as e:
-        st.session_state["run_step"] = f"❌ 執行失敗：{e}"
-        st.session_state["report"]   = f"**系統錯誤**\n\n```\n{e}\n```\n\n請確認環境變數與模組檔案是否齊全。"
+        import logging as _logging
+        _logging.error("run_full_analysis failed", exc_info=True)
+        st.session_state["run_step"] = "❌ 執行失敗，請稍後重試"
+        st.session_state["report"]   = "**系統錯誤**\n\n請確認 API 金鑰設定是否正確後重試。若問題持續，請聯繫管理員。"
 
 
 
@@ -1485,14 +1487,16 @@ with st.sidebar:
         icon  = cat.get("icon", {"anthropic": "🟠", "openai": "🟢", "google": "🔴"}.get(prov, "🤖"))
         label = cat.get("label", mid)
         has_key = bool(_key_map.get(prov, ""))
+        import html as _html_sb
+        _safe_label = _html_sb.escape(str(label))
         if has_key:
             st.markdown(
-                f"<span style='font-size:12px'>{icon} {label}</span>",
+                f"<span style='font-size:12px'>{icon} {_safe_label}</span>",
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                f"<span style='font-size:12px; color:#aaa'>{icon} {label}　<em>金鑰未設定</em></span>",
+                f"<span style='font-size:12px; color:#aaa'>{icon} {_safe_label}　<em>金鑰未設定</em></span>",
                 unsafe_allow_html=True,
             )
 
@@ -1617,7 +1621,8 @@ elif page == "🏠 戰情室主控台":
         lv  = assessment.alert_level.value.upper()
         cls = "rule-red" if lv in ("RED","BLACK") else "rule-yell" if lv == "YELLOW" else "rule-blk"
         for rule in assessment.triggered_rules:
-            st.markdown(f'<div class="{cls}">⚡ {rule}</div>', unsafe_allow_html=True)
+            import html as _html_esc
+            st.markdown(f'<div class="{cls}">⚡ {_html_esc.escape(str(rule))}</div>', unsafe_allow_html=True)
         st.markdown("")
 
     if assessment and assessment.fomo_intercept:
@@ -1931,15 +1936,20 @@ elif page == "⚙️ 模型與投資偏好":
         key="custom_model_text_input",
     )
     if col_ca.button("➕ 加入", key="btn_add_custom_model", use_container_width=True):
+        import re as _re_mid
         mid_clean = custom_input.strip()
-        if mid_clean and mid_clean not in custom_model_ids:
+        if not mid_clean:
+            pass
+        elif not _re_mid.match(r'^[a-zA-Z0-9._\-:/]{1,100}$', mid_clean):
+            st.error("⚠️ 模型 ID 格式不正確（只允許英文、數字、. - _ : /，最多 100 字元）")
+        elif mid_clean in custom_model_ids:
+            st.info(f"「{mid_clean}」已在清單中")
+        else:
             custom_model_ids.append(mid_clean)
             st.session_state["custom_model_ids"] = custom_model_ids
             if mid_clean not in cur_sel:
                 cur_sel.append(mid_clean)
             st.rerun()
-        elif mid_clean in custom_model_ids:
-            st.info(f"「{mid_clean}」已在清單中")
 
     for cid in custom_model_ids:
         prov   = detect_provider_from_model_id(cid)

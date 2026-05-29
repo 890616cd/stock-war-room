@@ -28,6 +28,28 @@ from enum import Enum
 from typing import Optional
 
 
+def _get_key(env_var: str) -> str:
+    """
+    安全讀取 API Key：
+      1. session_keys（各用戶完全隔離，雲端主路徑）
+      2. st.secrets（部署者預設值）
+      3. os.environ（僅本機 CLI 執行時的 fallback）
+    """
+    try:
+        import streamlit as st
+        val = st.session_state.get("session_keys", {}).get(env_var, "")
+        if val:
+            return val
+        try:
+            if env_var in st.secrets:
+                return str(st.secrets[env_var])
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return os.getenv(env_var, "")
+
+
 # ══════════════════════════════════════════════
 #  新聞類別定義
 # ══════════════════════════════════════════════
@@ -362,7 +384,9 @@ def _fetch_rss_for_category(
 
     for source_name, url in feeds:
         try:
-            feed = feedparser.parse(url)
+            # 手動用 requests 抓取後再 parse，確保有 timeout 控制
+            _rss_resp = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+            feed = feedparser.parse(_rss_resp.text)
             for entry in feed.entries[:max_per_feed]:
                 title   = getattr(entry, "title",   "") or ""
                 summary = getattr(entry, "summary", "") or ""
@@ -680,7 +704,7 @@ def fetch_categorized_news(
     result: dict[NewsCategory, list[EnrichedNewsItem]] = {}
 
     # ── 預抓 Finnhub 通用新聞（一次 API 呼叫，分配到三類別）──
-    finnhub_key = os.getenv("FINNHUB_KEY", "")
+    finnhub_key = _get_key("FINNHUB_KEY")
     finnhub_cache: dict[NewsCategory, list] = {}
     if finnhub_key:
         print("  [Finnhub] 預抓通用市場新聞（分配至三類別）...")
@@ -744,8 +768,8 @@ if __name__ == "__main__":
     print("  新聞情報引擎測試")
     print("=" * 60)
 
-    marketaux_key = os.getenv("MARKETAUX_API_KEY", "")
-    newsapi_key   = os.getenv("NEWS_API_KEY", "")
+    marketaux_key = _get_key("MARKETAUX_API_KEY")
+    newsapi_key   = _get_key("NEWS_API_KEY")
 
     news = fetch_categorized_news(
         api_key            = marketaux_key,
