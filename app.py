@@ -63,82 +63,63 @@ section[data-testid="stMain"] > div {{
     color: var(--text) !important;
 }}
 
-/* ═══ 主內容區：讓出頂部導覽列空間 ═══ */
+/* ═══ 主內容區：無頂部 padding（導覽列在文件流中）═══ */
 .block-container, [data-testid="stMainBlockContainer"] {{
-    padding-top: 80px !important;
+    padding-top: 0 !important;
     max-width: 1100px !important;
     padding-left: 2rem !important;
     padding-right: 2rem !important;
 }}
 
-/* ═══ 固定頂部導覽列 ═══ */
-.war-navbar {{
-    position: fixed; top:0; left:0; right:0;
-    height: 64px;
-    background: var(--navbar-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-    z-index: 999;
-    display: flex; align-items: center;
-    justify-content: space-between;
-    padding: 0 28px;
-    box-sizing: border-box;
+/* ═══ Streamlit columns 導覽列 (第2個子元素 = 頁面第一個 columns row) ═══ */
+/* CSS 原理：全域 CSS markdown 是 child 1，navbar columns 是 child 2，
+   用 nth-child(2) 精確命中，無需 :has() 或 JS */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) {{
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 999 !important;
+    background: var(--navbar-bg) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-bottom: 1px solid var(--border) !important;
+    margin-left: -2rem !important;
+    margin-right: -2rem !important;
+    padding: 6px 2rem !important;
+    min-height: 60px !important;
+    align-items: center !important;
 }}
-.nav-brand {{ display:flex; align-items:center; gap:10px; }}
-.nav-logo {{
-    width:36px; height:36px;
-    background: {'#D4AF37' if _dk else '#1E293B'};
-    border-radius: 10px;
-    display:flex; align-items:center; justify-content:center;
-    font-size:18px; line-height:1;
+/* 導覽列內：column 垂直對齊 */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) > [data-testid="stColumn"] {{
+    display: flex !important;
+    align-items: center !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
 }}
-.nav-title {{ font-size:17px; font-weight:700; color:var(--text); letter-spacing:.01em; }}
-.nav-right {{ display:flex; align-items:center; gap:12px; }}
-.nav-user  {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }}
-
-/* ═══ 導覽列按鈕：用 CSS 定位 Streamlit 按鈕至固定列右側 ═══ */
-/* 隱藏哨兵佔位容器 */
-div:has(> .nav-btn-sentinel) {{
-    height:0!important; overflow:hidden!important;
-    margin:0!important; padding:0!important;
+/* 導覽列內按鈕：透明底，融入列背景 */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) [data-testid="stButton"] button {{
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: var(--text) !important;
+    height: 36px !important; min-height: 36px !important;
+    padding: 4px 10px !important;
+    border-radius: 8px !important;
+    font-size: 15px !important;
+    box-shadow: none !important;
+    white-space: nowrap !important;
 }}
-/* 哨兵後緊接的水平區塊 → 固定在導覽列右側 */
-div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] {{
-    position:fixed!important;
-    top:10px!important; right:28px!important; left:auto!important;
-    width:auto!important; min-width:0!important;
-    z-index:1001!important;
-    gap:2px!important; margin:0!important; padding:0!important;
-    background:transparent!important;
-    flex-wrap:nowrap!important;
-    align-items:center!important;
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) [data-testid="stButton"] button:hover {{
+    background: {'rgba(255,255,255,0.12)' if _dk else 'rgba(0,0,0,0.07)'} !important;
 }}
-div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
-    flex:none!important; min-width:0!important;
-    padding:0!important; width:auto!important;
+/* 登出按鈕：細字 */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) > [data-testid="stColumn"]:last-child [data-testid="stButton"] button {{
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--muted) !important;
 }}
-/* 按鈕本體：透明背景，融入導覽列 */
-div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] [data-testid="stButton"] button {{
-    background:transparent!important;
-    border:1px solid transparent!important;
-    color:var(--text)!important;
-    padding:4px 9px!important;
-    font-size:15px!important;
-    border-radius:8px!important;
-    height:34px!important; min-height:34px!important;
-    line-height:1!important;
-    white-space:nowrap!important;
-    box-shadow:none!important;
-}}
-div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] [data-testid="stButton"] button:hover {{
-    background:{'rgba(255,255,255,0.12)' if _dk else 'rgba(0,0,0,0.06)'}!important;
-    border-color:transparent!important;
-}}
-/* 登出按鈕：小字樣式 */
-div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child [data-testid="stButton"] button {{
-    font-size:12px!important; font-weight:600!important;
-    color:var(--muted)!important;
+/* 返回按鈕：次要樣式 */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) > [data-testid="stColumn"]:nth-child(2) [data-testid="stButton"] button {{
+    font-size: 13px !important;
+    color: var(--muted) !important;
 }}
 
 /* ═══ KPI 指標卡片 ═══ */
@@ -375,7 +356,7 @@ div[data-testid="stAlert"][data-baseweb="notification"] {{
 @media (max-width: 768px) {{
     .block-container, [data-testid="stMainBlockContainer"] {{
         padding-left:1rem!important; padding-right:1rem!important;
-        padding-top:72px!important;
+        padding-top:0!important;
     }}
     h1, [data-testid="stHeading"] h1 {{ font-size:20px!important; }}
     h2, [data-testid="stHeading"] h2 {{ font-size:17px!important; }}
@@ -385,8 +366,6 @@ div[data-testid="stAlert"][data-baseweb="notification"] {{
     .stMarkdown p, .stMarkdown li {{ font-size:13px!important; }}
     [data-testid="stAlert"] {{ font-size:12px!important; padding:.55rem .75rem!important; }}
     [data-testid="stButton"] button {{ min-height:44px!important; }}
-    .war-navbar {{ padding:0 16px; }}
-    .nav-title {{ font-size:15px; }}
     .stTabs [data-baseweb="tab"] {{ font-size:11px!important; padding:6px 7px!important; white-space:nowrap; }}
     [data-testid="stDataFrame"] {{ overflow-x:auto!important; }}
     [data-testid="stExpander"] [data-testid="stHorizontalBlock"] {{ flex-wrap:nowrap!important; align-items:stretch!important; }}
@@ -1866,13 +1845,11 @@ fmp_key_sb     = _get_key("FMP_KEY")
 
 
 def _render_navbar(back_to=None, back_label="返回主控台"):
-    """頂部導覽列：固定 HTML 視覺層 + JS 定位 Streamlit 互動按鈕"""
+    """頂部導覽列：單一 st.columns() 列，CSS nth-child(2) 使其 sticky"""
     import html as _h
-    import streamlit.components.v1 as _comp
     _is_d = st.session_state.get("_theme", "light") == "dark"
     _icon_theme = "☀️" if _is_d else "🌙"
-    _btn_color  = "#E2E8F0" if _is_d else "#334155"
-    _btn_hover  = "rgba(255,255,255,0.14)" if _is_d else "rgba(0,0,0,0.07)"
+    _logo_bg = "#D4AF37" if _is_d else "#1E293B"
 
     # 使用者頭像 HTML
     _pic_html = ""
@@ -1881,142 +1858,60 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
         if _purl.startswith("https://lh3.googleusercontent.com/") or \
            _purl.startswith("https://googleusercontent.com/"):
             _pic_html = (
-                f"<img src='{_h.escape(_purl)}' width='28' height='28' "
-                "style='border-radius:50%;border:2px solid rgba(128,128,128,0.4);vertical-align:middle;'>"
+                f'<img src="{_h.escape(_purl)}" width="24" height="24" '
+                'style="border-radius:50%;border:2px solid rgba(128,128,128,0.35);vertical-align:middle;">'
             )
     _safe_nm = _h.escape(str(_current_user_name))
 
-    # ── 固定視覺導覽列 ─────────────────────────────────────
-    # 右側留出 ~160px 給 JS 定位的 Streamlit 按鈕
-    st.markdown(f"""
-<div class="war-navbar">
-    <div class="nav-brand">
-        <div class="nav-logo">⚔️</div>
-        <span class="nav-title">美股投資戰情室</span>
-    </div>
-    <div class="nav-right" style="margin-right:168px">
-        <div class="nav-user">
-            {_pic_html or "👤"}
-            <span>{_safe_nm}</span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    # ── 單一欄位列：CSS nth-child(2) 會將此列設為 sticky 導覽列 ──
+    # 欄位比例：品牌(5) | 返回鍵(2) | 彈性空間(3) | 使用者(3) | 主題(0.8) | 雲端(0.8) | 登出(1.2)
+    _nb, _nbk, _nsp, _nuser, _nt, _ns, _nlo = st.columns([5, 2, 3, 3, 0.8, 0.8, 1.2])
 
-    # ── 返回按鈕（文件流，子頁面才顯示）─────────────────────
-    if back_to:
-        if st.button(f"← {back_label}", key="nb_back"):
-            st.session_state["nav_page"] = back_to
-            st.session_state["selected_stock"] = None
-            st.rerun()
+    with _nb:
+        st.markdown(
+            f'<div style="display:flex;align-items:center;gap:9px;padding:10px 0;">'
+            f'<div style="width:32px;height:32px;background:{_logo_bg};border-radius:9px;'
+            f'display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;">⚔️</div>'
+            f'<span style="font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;">'
+            f'美股投資戰情室</span></div>',
+            unsafe_allow_html=True,
+        )
 
-    # ── 哨兵 + 真實 Streamlit 動作按鈕 ──────────────────────
-    st.markdown('<div class="nav-btn-sentinel"></div>', unsafe_allow_html=True)
-    _ba, _bb, _bc = st.columns([1, 1, 1])
-    if _ba.button(_icon_theme, key="nb_theme", help="切換深淺色模式"):
+    with _nbk:
+        if back_to:
+            if st.button(f"← {back_label}", key="nb_back", use_container_width=True):
+                st.session_state["nav_page"] = back_to
+                st.session_state["selected_stock"] = None
+                st.rerun()
+
+    # _nsp 留空，作為彈性空間把右側元素推到最右
+
+    with _nuser:
+        st.markdown(
+            f'<div style="display:flex;align-items:center;justify-content:flex-end;'
+            f'gap:6px;padding:10px 0;color:var(--muted);font-size:12px;white-space:nowrap;">'
+            f'{_pic_html or "👤"}<span>{_safe_nm}</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    if _nt.button(_icon_theme, key="nb_theme", help="切換深淺色模式"):
         _new_theme = "light" if _is_d else "dark"
         st.session_state["_theme"] = _new_theme
         st.toast("☀️ 已切換至淺色模式" if _new_theme == "light" else "🌙 已切換至深色模式", icon="✅")
         st.rerun()
-    if _bb.button("☁️", key="nb_sync", help="同步資料至雲端"):
+
+    if _ns.button("☁️", key="nb_sync", help="同步資料至雲端"):
         try:
             from module_storage import save_user_data
             if save_user_data(_current_user_id):
                 st.toast("✅ 已同步至雲端", icon="☁️")
         except Exception as _se:
             st.toast(f"同步失敗：{_se}", icon="⚠️")
-    if _bc.button("登出", key="nb_logout"):
+
+    if _nlo.button("登出", key="nb_logout"):
         st.session_state.pop("_oauth_user", None)
         st.session_state["user_data_loaded"] = False
         st.rerun()
-
-    # ── JavaScript：從 iframe 存取父視窗 DOM，將按鈕定位至導覽列 ──
-    _comp.html(f"""
-<script>
-(function() {{
-    try {{
-        var pd = window.parent.document;
-
-        function findHBlock(sentinel) {{
-            // 從 sentinel 往上找第一個 data-testid 元素，再找下一個 stHorizontalBlock 兄弟
-            var el = sentinel;
-            for (var i = 0; i < 5; i++) {{
-                el = el.parentElement;
-                if (!el) return null;
-                if (el.hasAttribute('data-testid')) {{
-                    var sib = el.nextElementSibling;
-                    var n = 0;
-                    while (sib && n++ < 8) {{
-                        if (sib.getAttribute('data-testid') === 'stHorizontalBlock') return {{mc: el, hb: sib}};
-                        sib = sib.nextElementSibling;
-                    }}
-                    return null;
-                }}
-            }}
-            return null;
-        }}
-
-        function applyNavStyle() {{
-            var sentinel = pd.querySelector('.nav-btn-sentinel');
-            if (!sentinel) return false;
-            var found = findHBlock(sentinel);
-            if (!found) return false;
-            var mc = found.mc, hb = found.hb;
-
-            // 隱藏哨兵容器
-            mc.style.cssText = 'height:0;overflow:hidden;margin:0;padding:0;';
-
-            // 定位按鈕列至導覽列右側
-            Object.assign(hb.style, {{
-                position:'fixed', top:'10px', right:'28px', left:'auto',
-                width:'auto', zIndex:'1002', display:'flex',
-                alignItems:'center', gap:'2px', flexWrap:'nowrap',
-                margin:'0', padding:'0', background:'transparent'
-            }});
-
-            // 縮緊每個 column
-            hb.querySelectorAll('[data-testid="stColumn"]').forEach(function(c){{
-                Object.assign(c.style, {{flex:'none', minWidth:'0', padding:'0', width:'auto'}});
-            }});
-
-            // 美化按鈕
-            hb.querySelectorAll('[data-testid="stButton"] button').forEach(function(b, i){{
-                Object.assign(b.style, {{
-                    background:'transparent',
-                    border:'1px solid transparent',
-                    color:'{_btn_color}',
-                    padding: i===2 ? '4px 10px' : '4px 9px',
-                    fontSize: i===2 ? '12px' : '15px',
-                    fontWeight: i===2 ? '600' : 'normal',
-                    borderRadius:'8px', height:'34px', minHeight:'34px',
-                    lineHeight:'1', cursor:'pointer', whiteSpace:'nowrap',
-                    boxShadow:'none', transition:'background 0.12s'
-                }});
-                b.onmouseover = function(){{ this.style.background = '{_btn_hover}'; }};
-                b.onmouseout  = function(){{ this.style.background = 'transparent'; }};
-            }});
-            return true;
-        }}
-
-        // 嘗試套用，最多重試 30 次（3 秒）
-        var tries = 0;
-        function tryApply() {{
-            if (applyNavStyle()) return;
-            if (++tries < 30) setTimeout(tryApply, 100);
-        }}
-        tryApply();
-
-        // 監聽 DOM 變化（Streamlit 重渲染時重新套用），防抖 50ms
-        var debounceTimer;
-        new window.parent.MutationObserver(function() {{
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(applyNavStyle, 50);
-        }}).observe(pd.body, {{childList: true, subtree: true}});
-
-    }} catch(e) {{ /* cross-origin 時靜默失敗，CSS :has() 作為備援 */ }}
-}})();
-</script>
-""", height=0)
 
 
 
