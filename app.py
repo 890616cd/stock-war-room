@@ -508,6 +508,119 @@ def _save_api_key(env_var: str, value: str):
             pass
 
 
+def _delete_api_key(env_var: str):
+    """清除指定的 API Key（session + .env + Supabase）"""
+    if "session_keys" not in st.session_state:
+        st.session_state["session_keys"] = {k: "" for k in _ALL_KEY_VARS}
+    st.session_state["session_keys"][env_var] = ""
+    if not _is_cloud():
+        try:
+            env_path = Path(__file__).parent / ".env"
+            if env_path.exists():
+                lines = env_path.read_text(encoding="utf-8").splitlines()
+                for i, line in enumerate(lines):
+                    if line.startswith(f"{env_var}="):
+                        lines[i] = f"{env_var}="
+                        break
+                env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except (PermissionError, OSError):
+            pass
+    _uid = st.session_state.get("_current_user_id_cache", "")
+    if _uid:
+        try:
+            from module_storage import save_user_data
+            save_user_data(_uid)
+        except Exception:
+            pass
+
+
+def _validate_api_key(env_var: str, key: str) -> tuple:
+    """
+    驗證 API Key 是否有效且填入正確欄位。
+    返回 (is_valid: bool, message: str)
+    使用最小化 API 呼叫，盡量不消耗用量。
+    """
+    import requests as _vreq
+    key = key.strip()
+    if not key:
+        return False, "請輸入 Key"
+    try:
+        # ── AI 模型 ──────────────────────────────────────
+        if env_var == "ANTHROPIC_API_KEY":
+            import anthropic as _ant
+            _ant.Anthropic(api_key=key).models.list()
+            return True, "✅ Anthropic 金鑰驗證成功"
+
+        elif env_var == "OPENAI_API_KEY":
+            from openai import OpenAI as _OAI
+            _OAI(api_key=key).models.list()
+            return True, "✅ OpenAI 金鑰驗證成功"
+
+        elif env_var == "GOOGLE_API_KEY":
+            import google.generativeai as _genai
+            _genai.configure(api_key=key)
+            list(_genai.list_models())
+            return True, "✅ Google 金鑰驗證成功"
+
+        # ── 財經資料 API ──────────────────────────────────
+        elif env_var == "MARKETAUX_API_KEY":
+            r = _vreq.get(
+                "https://api.marketaux.com/v1/news/all",
+                params={"api_token": key, "limit": 1},
+                timeout=10
+            )
+            data = r.json()
+            if r.status_code == 200 and "data" in data:
+                return True, "✅ Marketaux 金鑰驗證成功"
+            err_msg = data.get("error", {}).get("message", "金鑰無效或填錯欄位")
+            return False, f"❌ Marketaux 驗證失敗：{err_msg}"
+
+        elif env_var == "FINNHUB_KEY":
+            r = _vreq.get(
+                "https://finnhub.io/api/v1/quote",
+                params={"symbol": "AAPL", "token": key},
+                timeout=10
+            )
+            data = r.json()
+            if r.status_code == 200 and data.get("c"):
+                return True, "✅ Finnhub 金鑰驗證成功"
+            if r.status_code == 401 or "error" in data:
+                return False, "❌ Finnhub 金鑰無效，請確認是否填入正確欄位"
+            return False, "❌ Finnhub 驗證失敗"
+
+        elif env_var == "FMP_KEY":
+            r = _vreq.get(
+                "https://financialmodelingprep.com/api/v3/profile/AAPL",
+                params={"apikey": key},
+                timeout=10
+            )
+            data = r.json()
+            if isinstance(data, list) and data:
+                return True, "✅ FMP 金鑰驗證成功"
+            if isinstance(data, dict) and "Error Message" in data:
+                return False, "❌ FMP 金鑰無效，請確認是否填入正確欄位"
+            return False, "❌ FMP 驗證失敗"
+
+        elif env_var == "ALPHA_VANTAGE_KEY":
+            r = _vreq.get(
+                "https://www.alphavantage.co/query",
+                params={"function": "GLOBAL_QUOTE", "symbol": "IBM", "apikey": key},
+                timeout=10
+            )
+            data = r.json()
+            if "Global Quote" in data and data["Global Quote"]:
+                return True, "✅ Alpha Vantage 金鑰驗證成功"
+            if "Information" in data or "Note" in data:
+                # 達頻率限制但金鑰本身存在
+                return True, "⚠️ Alpha Vantage 已達免費方案頻率上限，但金鑰有效"
+            return False, "❌ Alpha Vantage 金鑰無效，請確認是否填入正確欄位"
+
+    except Exception:
+        return False, "❌ 驗證失敗：請確認網路連線或稍後再試"
+
+    return False, "❌ 未知錯誤"
+
+
 # ════════════════════════════════════════════════════════
 #  首次使用導引彈窗
 # ════════════════════════════════════════════════════════
@@ -2169,18 +2282,38 @@ elif page == "📚 教學 & API設定":
                 st.warning("⚠️ 無法識別供應商，請確認 Key 格式（支援：`sk-ant-`、`sk-proj-`、`sk-`、`AIza`）")
 
         _col_save_ai, _ = st.columns([2, 8])
-        if _col_save_ai.button("💾 儲存 AI 金鑰", type="primary", key="save_smart_key"):
+        if _col_save_ai.button("💾 驗證並儲存 AI 金鑰", type="primary", key="save_smart_key"):
             _k = smart_key_input.strip()
             if _k:
                 _sprov, _senv = detect_provider_from_key(_k)
                 if _sprov:
-                    _save_api_key(_senv, _k)
-                    st.success(f"✅ {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰已儲存並生效！")
-                    st.rerun()
+                    with st.spinner(f"驗證 {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰中…"):
+                        _ok, _vmsg = _validate_api_key(_senv, _k)
+                    if _ok:
+                        _save_api_key(_senv, _k)
+                        st.success(_vmsg + "　金鑰已儲存並生效！")
+                        st.rerun()
+                    else:
+                        st.error(_vmsg)
                 else:
                     st.error("❌ 無法識別供應商，請確認 Key 格式正確")
             else:
                 st.warning("請先輸入 API Key")
+
+        # ── 已設定的 AI 金鑰刪除區 ────────────────────────
+        _has_any_ai = any(_get_key(i["env"]) for i in _AI_PROVIDER_INFO.values())
+        if _has_any_ai:
+            st.markdown("**已設定的 AI 金鑰：**")
+            _dcols = st.columns(len(_AI_PROVIDER_INFO))
+            for _di, (_dpid, _dpinfo) in enumerate(_AI_PROVIDER_INFO.items()):
+                _dk = _get_key(_dpinfo["env"])
+                if _dk:
+                    with _dcols[_di]:
+                        st.caption(f"{_dpinfo['label']}　`...{_dk[-6:]}`")
+                        if st.button(f"🗑️ 刪除", key=f"del_ai_{_dpid}", use_container_width=True):
+                            _delete_api_key(_dpinfo["env"])
+                            st.success(f"✅ {_dpinfo['label']} 金鑰已刪除")
+                            st.rerun()
 
         with st.expander("🔧 進階：手動逐一設定各供應商金鑰", expanded=False):
             for _env_var, _label, _placeholder, _note in [
@@ -2190,21 +2323,31 @@ elif page == "📚 教學 & API設定":
             ]:
                 _cur = _get_key(_env_var)
                 _masked = f"...{_cur[-8:]}" if len(_cur) > 8 else ("已設定" if _cur else "")
+                _adv_set = bool(_cur)
                 st.caption(f"**{_label}** — {_note}")
-                _ac1, _ac2 = st.columns([5, 1])
+                _ac1, _ac2, _ac3 = st.columns([5, 1, 1])
                 _anv = _ac1.text_input(
                     f"_{_env_var}_adv",
                     value="", placeholder=_masked if _masked else _placeholder,
                     type="password", label_visibility="collapsed",
                     key=f"adv_inp_{_env_var}",
                 )
-                if _ac2.button("儲存", key=f"adv_save_{_env_var}"):
+                if _ac2.button("💾", key=f"adv_save_{_env_var}", help="驗證並儲存", use_container_width=True):
                     if _anv.strip():
-                        _save_api_key(_env_var, _anv.strip())
-                        st.success("✅ 已儲存")
-                        st.rerun()
+                        with st.spinner(f"驗證 {_label} 金鑰中…"):
+                            _ok, _vmsg = _validate_api_key(_env_var, _anv.strip())
+                        if _ok:
+                            _save_api_key(_env_var, _anv.strip())
+                            st.success(_vmsg + "　已儲存")
+                            st.rerun()
+                        else:
+                            st.error(_vmsg)
                     else:
                         st.warning("請輸入有效的 Key")
+                if _adv_set and _ac3.button("🗑️", key=f"adv_del_{_env_var}", help="刪除此金鑰", use_container_width=True):
+                    _delete_api_key(_env_var)
+                    st.success(f"✅ {_label} 金鑰已刪除")
+                    st.rerun()
                 st.markdown("")
 
         st.divider()
@@ -2221,24 +2364,36 @@ elif page == "📚 教學 & API設定":
         ]:
             cur_val = _get_key(env_var)
             masked  = f"...{cur_val[-8:]}" if len(cur_val) > 8 else ("已設定" if cur_val else "")
+            _is_set = bool(cur_val)
+
             st.markdown(f"**{label}** 🔵 選填")
             st.caption(note)
-            col_inp, col_btn = st.columns([5, 1])
+
+            col_inp, col_save, col_del = st.columns([5, 1, 1])
             new_val = col_inp.text_input(
                 f"_{env_var}",
-                value       = "",
-                placeholder = masked if masked else placeholder,
-                type        = "password",
+                value            = "",
+                placeholder      = masked if masked else placeholder,
+                type             = "password",
                 label_visibility = "collapsed",
-                key         = f"inp_{env_var}",
+                key              = f"inp_{env_var}",
             )
-            if col_btn.button("儲存", key=f"save_{env_var}", type="secondary"):
+            if col_save.button("💾", key=f"save_{env_var}", type="secondary", help="驗證並儲存", use_container_width=True):
                 if new_val.strip():
-                    _save_api_key(env_var, new_val.strip())
-                    st.success(f"✅ {label} 已儲存並生效")
-                    st.rerun()
+                    with st.spinner(f"驗證 {label} 金鑰中…"):
+                        _ok, _msg = _validate_api_key(env_var, new_val.strip())
+                    if _ok:
+                        _save_api_key(env_var, new_val.strip())
+                        st.success(_msg)
+                        st.rerun()
+                    else:
+                        st.error(_msg)
                 else:
-                    st.warning("請輸入有效的 Key 值")
+                    st.warning("請先輸入 Key 值")
+            if _is_set and col_del.button("🗑️", key=f"del_{env_var}", type="secondary", help="刪除此金鑰", use_container_width=True):
+                _delete_api_key(env_var)
+                st.success(f"✅ {label} 金鑰已刪除")
+                st.rerun()
             st.markdown("")
 
     # ── Tab 2（已移除：雲端部署） ─────────────────────────
