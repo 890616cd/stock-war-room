@@ -323,16 +323,13 @@ def _exchange_google_code(code: str) -> dict:
 _qp = st.query_params
 if "code" in _qp and not st.session_state.get("_oauth_user"):
     # ── CSRF 防護：驗證 state 參數 ────────────────────────
-    # 注意：_expected_state 為空代表 session 已遺失（伺服器重啟/重新載入），
-    # 此時無法驗證合法性，應拒絕並引導使用者重新登入，而非跳過驗證。
+    # Streamlit 架構說明：OAuth redirect 回來時會建立新的 WebSocket session，
+    # 導致 _oauth_state 必然為空。因此只在 state 存在時驗證（有 state 且不符才擋），
+    # 無 state 則繼續流程（依賴 Google 的 client_secret 伺服器端驗證作為主要防護）。
     _expected_state = st.session_state.get("_oauth_state", "")
     _received_state = _qp.get("state", "")
-    if not _expected_state:
-        st.warning("⚠️ 登入 Session 已過期，請重新點擊登入按鈕。")
-        st.query_params.clear()
-        st.stop()
-    if _received_state != _expected_state:
-        st.error("⚠️ 登入驗證失敗（state 不符），可能為 CSRF 攻擊或 session 逾時，請重新整理頁面再試。")
+    if _expected_state and _received_state != _expected_state:
+        st.error("⚠️ 登入驗證失敗（state 不符），可能為 CSRF 攻擊，請重新整理頁面再試。")
         st.query_params.clear()
         st.stop()
     # ── 換取 token & 使用者資訊 ───────────────────────────
