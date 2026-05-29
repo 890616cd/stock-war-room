@@ -94,25 +94,52 @@ section[data-testid="stMain"] > div {{
     font-size:18px; line-height:1;
 }}
 .nav-title {{ font-size:17px; font-weight:700; color:var(--text); letter-spacing:.01em; }}
-.nav-right {{ display:flex; align-items:center; gap:14px; }}
-.nav-actions {{ display:flex; align-items:center; gap:2px; }}
-.nav-action-btn {{
-    display:inline-flex; align-items:center; justify-content:center;
-    min-width:32px; height:32px;
-    padding:0 8px;
-    border-radius:8px;
-    text-decoration:none;
-    font-size:15px; line-height:1;
-    color:var(--text);
-    background:transparent;
-    transition:background 0.15s, color 0.15s;
-    cursor:pointer;
-    white-space:nowrap;
-}}
-.nav-action-btn:hover {{ background:var(--card2); }}
-.nav-action-btn.nav-logout {{ font-size:12px; font-weight:600; color:var(--muted); padding:0 10px; }}
-.nav-action-btn.nav-logout:hover {{ color:var(--text); }}
+.nav-right {{ display:flex; align-items:center; gap:12px; }}
 .nav-user  {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }}
+
+/* ═══ 導覽列按鈕：用 CSS 定位 Streamlit 按鈕至固定列右側 ═══ */
+/* 隱藏哨兵佔位容器 */
+div:has(> .nav-btn-sentinel) {{
+    height:0!important; overflow:hidden!important;
+    margin:0!important; padding:0!important;
+}}
+/* 哨兵後緊接的水平區塊 → 固定在導覽列右側 */
+div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] {{
+    position:fixed!important;
+    top:10px!important; right:28px!important; left:auto!important;
+    width:auto!important; min-width:0!important;
+    z-index:1001!important;
+    gap:2px!important; margin:0!important; padding:0!important;
+    background:transparent!important;
+    flex-wrap:nowrap!important;
+    align-items:center!important;
+}}
+div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+    flex:none!important; min-width:0!important;
+    padding:0!important; width:auto!important;
+}}
+/* 按鈕本體：透明背景，融入導覽列 */
+div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] [data-testid="stButton"] button {{
+    background:transparent!important;
+    border:1px solid transparent!important;
+    color:var(--text)!important;
+    padding:4px 9px!important;
+    font-size:15px!important;
+    border-radius:8px!important;
+    height:34px!important; min-height:34px!important;
+    line-height:1!important;
+    white-space:nowrap!important;
+    box-shadow:none!important;
+}}
+div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] [data-testid="stButton"] button:hover {{
+    background:{'rgba(255,255,255,0.12)' if _dk else 'rgba(0,0,0,0.06)'}!important;
+    border-color:transparent!important;
+}}
+/* 登出按鈕：小字樣式 */
+div:has(> .nav-btn-sentinel) + [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child [data-testid="stButton"] button {{
+    font-size:12px!important; font-weight:600!important;
+    color:var(--muted)!important;
+}}
 
 /* ═══ KPI 指標卡片 ═══ */
 [data-testid="stMetric"] {{
@@ -1756,7 +1783,7 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
 
     _safe_nm = _h.escape(str(_current_user_name))
 
-    # 固定視覺導覽列（主題/同步/登出直接嵌入為 <a> 連結）
+    # 固定視覺導覽列（右側僅顯示頭像與名稱，按鈕由 Streamlit 透過 CSS 定位覆蓋）
     st.markdown(f"""
 <div class="war-navbar">
     <div class="nav-brand">
@@ -1764,11 +1791,6 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
         <span class="nav-title">美股投資戰情室</span>
     </div>
     <div class="nav-right">
-        <div class="nav-actions">
-            <a href="?nav_action=theme"  class="nav-action-btn" title="切換深淺色模式">{_icon_theme}</a>
-            <a href="?nav_action=sync"   class="nav-action-btn" title="同步資料至雲端">☁️</a>
-            <a href="?nav_action=logout" class="nav-action-btn nav-logout">登出</a>
-        </div>
         <div class="nav-user">
             {_pic_html or "👤"}
             <span>{_safe_nm}</span>
@@ -1777,12 +1799,30 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
 </div>
 """, unsafe_allow_html=True)
 
-    # 返回按鈕（僅子頁面顯示，保留 Streamlit 互動）
+    # 返回按鈕（僅子頁面顯示）
     if back_to:
         if st.button(f"← {back_label}", key="nb_back"):
             st.session_state["nav_page"] = back_to
             st.session_state["selected_stock"] = None
             st.rerun()
+
+    # 哨兵 + 三顆動作按鈕（CSS 定位至導覽列右側）
+    st.markdown('<div class="nav-btn-sentinel"></div>', unsafe_allow_html=True)
+    _ba, _bb, _bc = st.columns([1, 1, 1])
+    if _ba.button(_icon_theme, key="nb_theme", help="切換深淺色模式"):
+        st.session_state["_theme"] = "light" if _is_d else "dark"
+        st.rerun()
+    if _bb.button("☁️", key="nb_sync", help="同步資料至雲端"):
+        try:
+            from module_storage import save_user_data
+            if save_user_data(_current_user_id):
+                st.toast("✅ 已同步至雲端", icon="☁️")
+        except Exception as _se:
+            st.toast(f"同步失敗：{_se}", icon="⚠️")
+    if _bc.button("登出", key="nb_logout"):
+        st.session_state.pop("_oauth_user", None)
+        st.session_state["user_data_loaded"] = False
+        st.rerun()
 
 
 
