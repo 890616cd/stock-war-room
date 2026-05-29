@@ -23,189 +23,173 @@ st.set_page_config(
     page_title  = "美股投資戰情室",
     page_icon   = "⚔️",
     layout      = "wide",
-    initial_sidebar_state = "expanded",
+    initial_sidebar_state = "collapsed",
 )
 
-# ── 全域 CSS ─────────────────────────────────────────────
-st.markdown("""
+# ── 全域 CSS（主題動態注入）────────────────────────────────
+_thm = st.session_state.get("_theme", "light")
+_dk  = _thm == "dark"
+
+st.markdown(f"""
 <style>
-/* ── Sidebar ───────────────────────── */
-[data-testid="stSidebar"] { min-width: 220px; max-width: 220px; }
-[data-testid="stSidebar"] .block-container { padding: 1rem 0.75rem; }
+/* ═══ 隱藏 Streamlit 預設 Chrome ═══ */
+[data-testid="stSidebar"]               {{ display:none!important; }}
+[data-testid="stToolbarActions"]         {{ display:none!important; }}
+header[data-testid="stHeader"]           {{ display:none!important; }}
+button[data-testid="collapsedControl"]   {{ display:none!important; }}
+#MainMenu                               {{ display:none!important; }}
+footer                                  {{ display:none!important; }}
 
-/* ── 警戒等級徽章 ───────────────────── */
-.alert-green  { color: #0a5c47; background: #d4f5e9; padding: 5px 18px; border-radius: 20px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #a8e6d3; }
-.alert-yellow { color: #7a4500; background: #fef3cd; padding: 5px 18px; border-radius: 20px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #fddfa0; }
-.alert-red    { color: #8b1a1a; background: #fde8e8; padding: 5px 18px; border-radius: 20px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #f5b7b7; }
-.alert-black  { color: #e8e8e8; background: #2c2c2c; padding: 5px 18px; border-radius: 20px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #555; }
+/* ═══ 主題色彩 CSS 變數 ═══ */
+:root {{
+    --surface:   {'#0F172A' if _dk else '#F8F9FA'};
+    --card:      {'#1E293B' if _dk else '#FFFFFF'};
+    --card2:     {'#243347' if _dk else '#F1F5F9'};
+    --text:      {'#E2E8F0' if _dk else '#334155'};
+    --muted:     {'#94A3B8' if _dk else '#64748B'};
+    --border:    {'#334155' if _dk else '#E2E8F0'};
+    --up:        #10B981;
+    --down:      #EF4444;
+    --brand:     #D4AF37;
+    --shadow:    {'0 4px 20px -2px rgba(0,0,0,0.45)' if _dk else '0 4px 20px -2px rgba(0,0,0,0.05), 0 0 3px rgba(0,0,0,0.02)'};
+    --navbar-bg: {'rgba(15,23,42,0.90)' if _dk else 'rgba(255,255,255,0.90)'};
+}}
 
-/* ── 觸發規則卡片 ───────────────────── */
-.rule-red  { border-left: 3px solid #e24b4a; padding: 8px 14px; margin: 5px 0; background: #fff5f5; border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.5; }
-.rule-yell { border-left: 3px solid #f0a500; padding: 8px 14px; margin: 5px 0; background: #fffbf0; border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.5; }
-.rule-blk  { border-left: 3px solid #555;    padding: 8px 14px; margin: 5px 0; background: #f5f5f5; border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.5; }
+/* ═══ App 背景 ═══ */
+.stApp, [data-testid="stAppViewContainer"],
+section[data-testid="stMain"],
+section[data-testid="stMain"] > div {{
+    background-color: var(--surface) !important;
+    color: var(--text) !important;
+}}
 
-/* ── 指標卡片 ───────────────────────── */
-[data-testid="stMetric"] {
-    background: var(--background-color, #f9f9fb);
-    border: 1px solid rgba(0,0,0,0.07);
+/* ═══ 主內容區：讓出頂部導覽列空間 ═══ */
+.block-container, [data-testid="stMainBlockContainer"] {{
+    padding-top: 80px !important;
+    max-width: 1100px !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+}}
+
+/* ═══ 固定頂部導覽列 ═══ */
+.war-navbar {{
+    position: fixed; top:0; left:0; right:0;
+    height: 64px;
+    background: var(--navbar-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    z-index: 999;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    box-sizing: border-box;
+}}
+.nav-brand {{ display:flex; align-items:center; gap:10px; }}
+.nav-logo {{
+    width:36px; height:36px;
+    background: {'#D4AF37' if _dk else '#1E293B'};
     border-radius: 10px;
-    padding: 10px 14px !important;
-}
-[data-testid="stMetricLabel"]  { font-size: 11px !important; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; opacity: .65; }
-[data-testid="stMetricValue"]  { font-size: 22px !important; font-weight: 700; }
-[data-testid="stMetricDelta"]  { font-size: 12px !important; }
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; line-height:1;
+}}
+.nav-title {{ font-size:17px; font-weight:700; color:var(--text); letter-spacing:.01em; }}
+.nav-user  {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }}
 
-/* ── 分隔線細化 ─────────────────────── */
-hr { margin: 12px 0 !important; opacity: .25; }
+/* ═══ KPI 指標卡片 ═══ */
+[data-testid="stMetric"] {{
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 18px !important;
+    padding: 14px 18px !important;
+    box-shadow: var(--shadow) !important;
+}}
+[data-testid="stMetricLabel"] {{ font-size:11px!important; opacity:.65; text-transform:uppercase; letter-spacing:.5px; color:var(--text)!important; }}
+[data-testid="stMetricValue"] {{ font-size:20px!important; font-weight:700; font-family:'Courier New',monospace; color:var(--text)!important; }}
+[data-testid="stMetricDelta"] {{ font-size:12px!important; }}
 
-/* ── 報告 Markdown 優化 ──────────────── */
-.stMarkdown h2 { font-size: 17px !important; margin-top: 18px !important; padding-bottom: 4px; border-bottom: 1px solid rgba(0,0,0,0.1); }
-.stMarkdown h3 { font-size: 15px !important; margin-top: 14px !important; }
-.stMarkdown p  { font-size: 14px; line-height: 1.7; }
-.stMarkdown li { font-size: 14px; line-height: 1.6; }
-.stMarkdown blockquote { border-left: 3px solid #4A90E2; padding-left: 12px; color: #555; font-size: 13px; }
+/* ═══ 區塊容器 ═══ */
+[data-testid="stVerticalBlockBorderWrapper"] {{
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 20px !important;
+    padding: 20px !important;
+    box-shadow: var(--shadow) !important;
+}}
 
-/* ── 隱藏右上角工具列（Share / 書籤 / 編輯 / 選單）── */
-[data-testid="stToolbarActions"] { display: none !important; }
+/* ═══ 警戒等級徽章 ═══ */
+.alert-green  {{ color:#0a5c47; background:#d4f5e9; padding:5px 18px; border-radius:20px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px; border:1px solid #a8e6d3; }}
+.alert-yellow {{ color:#7a4500; background:#fef3cd; padding:5px 18px; border-radius:20px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px; border:1px solid #fddfa0; }}
+.alert-red    {{ color:#8b1a1a; background:#fde8e8; padding:5px 18px; border-radius:20px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px; border:1px solid #f5b7b7; }}
+.alert-black  {{ color:#e8e8e8; background:#2c2c2c; padding:5px 18px; border-radius:20px; font-weight:700; font-size:13px; display:inline-flex; align-items:center; gap:6px; border:1px solid #555; }}
 
-/* ── 手機響應式優化（768px 以下）────── */
-@media (max-width: 768px) {
+/* ═══ 觸發規則卡片 ═══ */
+.rule-red  {{ border-left:3px solid #e24b4a; padding:8px 14px; margin:5px 0; background:#fff5f5; border-radius:0 8px 8px 0; font-size:13px; line-height:1.5; }}
+.rule-yell {{ border-left:3px solid #f0a500; padding:8px 14px; margin:5px 0; background:#fffbf0; border-radius:0 8px 8px 0; font-size:13px; line-height:1.5; }}
+.rule-blk  {{ border-left:3px solid #555;    padding:8px 14px; margin:5px 0; background:#f5f5f5; border-radius:0 8px 8px 0; font-size:13px; line-height:1.5; }}
 
-    /* 主內容區：左右留白，上方撐過工具列 */
-    .block-container,
-    .stMainBlockContainer,
-    [data-testid="stAppViewBlockContainer"],
-    section[data-testid="stMain"] .block-container,
-    section[data-testid="stMain"] > div > div {
-        padding-left: 1.5rem !important;
-        padding-right: 1.5rem !important;
-        padding-top: 3.5rem !important;
-        box-sizing: border-box !important;
-    }
+/* ═══ 分隔線 ═══ */
+hr {{ margin:14px 0!important; opacity:.2; border-color:var(--border); }}
 
-    /* Sidebar：縮小寬度 */
-    [data-testid="stSidebar"] {
-        min-width: 65vw !important;
-        max-width: 70vw !important;
-    }
-    [data-testid="stSidebar"] .block-container {
-        padding: 1rem 0.75rem !important;
-    }
+/* ═══ 報告 Markdown ═══ */
+.stMarkdown h2 {{ font-size:17px!important; margin-top:18px!important; padding-bottom:4px; border-bottom:1px solid var(--border); color:var(--text); }}
+.stMarkdown h3 {{ font-size:15px!important; margin-top:14px!important; color:var(--text); }}
+.stMarkdown p  {{ font-size:14px; line-height:1.7; color:var(--text); }}
+.stMarkdown li {{ font-size:14px; line-height:1.6; color:var(--text); }}
+.stMarkdown blockquote {{ border-left:3px solid #4A90E2; padding-left:12px; font-size:13px; }}
 
-    /* 頁面主標題置中、縮小 */
-    h1, [data-testid="stHeading"] h1 {
-        font-size: 20px !important;
-        line-height: 1.3 !important;
-        text-align: center !important;
-    }
-    h2, [data-testid="stHeading"] h2 { font-size: 17px !important; }
-    h3, [data-testid="stHeading"] h3 { font-size: 15px !important; }
+/* ═══ DataFrame ═══ */
+[data-testid="stDataFrame"] {{ border-radius:12px!important; overflow:hidden!important; }}
 
-    /* Tabs：emoji + 短文字仍可顯示，不換行截斷 */
-    .stTabs [data-baseweb="tab-list"] { gap: 0px !important; }
-    .stTabs [data-baseweb="tab"] {
-        font-size: 11px !important;
-        padding: 6px 7px !important;
-        white-space: nowrap;
-        min-width: 0 !important;
-    }
+/* ═══ Expander ═══ */
+[data-testid="stExpander"] {{
+    background: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 14px !important;
+}}
+[data-testid="stExpander"] summary {{ color:var(--text)!important; }}
 
-    /* Metric 卡片 */
-    [data-testid="stMetric"] { padding: 8px 10px !important; }
-    [data-testid="stMetricValue"] { font-size: 16px !important; }
-    [data-testid="stMetricLabel"] { font-size: 9px !important; }
-    [data-testid="stMetricDelta"] { font-size: 11px !important; }
+/* ═══ Input / Textarea ═══ */
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea {{
+    background: var(--card2) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+    border-radius: 10px !important;
+}}
 
-    /* 內文 & 清單 */
-    .stMarkdown p, .stMarkdown li { font-size: 13px !important; line-height: 1.6 !important; }
-    .stMarkdown h2 { font-size: 15px !important; }
-    .stMarkdown h3 { font-size: 14px !important; }
+/* ═══ Tabs ═══ */
+.stTabs [data-baseweb="tab-list"] {{ gap:4px; background:transparent; }}
+.stTabs [data-baseweb="tab"] {{ border-radius:8px 8px 0 0; color:var(--text); }}
+.stTabs [data-baseweb="tab-panel"] {{ background:transparent; }}
 
-    /* Info / Warning / Success box */
-    [data-testid="stAlert"] {
-        font-size: 12px !important;
-        padding: 0.55rem 0.75rem !important;
-        line-height: 1.5 !important;
-    }
+/* ═══ Alert/Info boxes ═══ */
+[data-testid="stAlert"] {{ border-radius:12px!important; }}
 
-    /* Caption 說明文字 */
-    [data-testid="stCaptionContainer"] p,
-    .stCaption { font-size: 11px !important; }
-
-    /* 輸入欄位 */
-    [data-testid="stTextInput"] input,
-    [data-testid="stTextArea"] textarea {
-        font-size: 14px !important;
-    }
-
-    /* 按鈕：觸控友善最小高度 */
-    .stButton > button {
-        min-height: 44px !important;
-        font-size: 13px !important;
-        padding: 0.4rem 0.8rem !important;
-    }
-
-    /* Expander 標題 */
-    [data-testid="stExpander"] summary {
-        font-size: 13px !important;
-    }
-
-    /* checkbox label */
-    [data-testid="stCheckbox"] label { font-size: 13px !important; }
-
-    /* 防止任何元素橫向溢出 */
-    * { box-sizing: border-box; }
-    .element-container { max-width: 100% !important; }
-}
-
-/* 表格在小螢幕可橫向滾動 */
-[data-testid="stDataFrame"] { overflow-x: auto !important; }
-
-/* Markdown 表格手機橫向滾動 */
-@media (max-width: 768px) {
-    .stMarkdown table {
-        display: block !important;
-        overflow-x: auto !important;
-        white-space: nowrap !important;
-        font-size: 12px !important;
-        width: 100% !important;
-    }
-    .stMarkdown th,
-    .stMarkdown td {
-        padding: 5px 8px !important;
-        white-space: normal !important;
-        min-width: 80px !important;
-        max-width: 160px !important;
-        word-break: break-word !important;
-    }
-    /* 手機：主內容不被 sidebar 箭頭遮到 */
-    section[data-testid="stMain"] > div:first-child {
-        padding-left: 0 !important;
-    }
-
-    /* 自選股：Expander 內的欄位不換行（個股按鈕 + 刪除按鈕同一行）*/
-    [data-testid="stExpander"] [data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        align-items: stretch !important;
-    }
-    [data-testid="stExpander"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-        min-width: 0 !important;
-        overflow: hidden;
-    }
-}
-
-/* 登入按鈕：置中顯示 */
-section[data-testid="stMain"] [data-testid="stLinkButton"] {
-    display: flex !important;
-    justify-content: center !important;
-    width: 100% !important;
-}
-section[data-testid="stMain"] [data-testid="stLinkButton"] > a {
-    max-width: 360px !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    text-align: center !important;
-}
+/* ═══ 手機響應式 ═══ */
+@media (max-width: 768px) {{
+    .block-container, [data-testid="stMainBlockContainer"] {{
+        padding-left:1rem!important; padding-right:1rem!important;
+        padding-top:72px!important;
+    }}
+    h1, [data-testid="stHeading"] h1 {{ font-size:20px!important; }}
+    h2, [data-testid="stHeading"] h2 {{ font-size:17px!important; }}
+    [data-testid="stMetricValue"] {{ font-size:16px!important; }}
+    [data-testid="stMetricLabel"] {{ font-size:9px!important; }}
+    [data-testid="stMetricDelta"] {{ font-size:11px!important; }}
+    .stMarkdown p, .stMarkdown li {{ font-size:13px!important; }}
+    [data-testid="stAlert"] {{ font-size:12px!important; padding:.55rem .75rem!important; }}
+    [data-testid="stButton"] button {{ min-height:44px!important; }}
+    .war-navbar {{ padding:0 16px; }}
+    .nav-title {{ font-size:15px; }}
+    .stTabs [data-baseweb="tab"] {{ font-size:11px!important; padding:6px 7px!important; white-space:nowrap; }}
+    [data-testid="stDataFrame"] {{ overflow-x:auto!important; }}
+    [data-testid="stExpander"] [data-testid="stHorizontalBlock"] {{ flex-wrap:nowrap!important; align-items:stretch!important; }}
+    [data-testid="stExpander"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{ min-width:0!important; overflow:hidden; }}
+}}
+@media (max-width: 768px) {{
+    .stMarkdown table {{ display:block!important; overflow-x:auto!important; white-space:nowrap!important; font-size:12px!important; }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -244,6 +228,10 @@ def _init_state():
         "_pin_fernet":    None,   # 解鎖後的 Fernet 物件（用於加解密）
         "_prev_nav_page": "",     # 上一次的導覽頁面（用於偵測頁面切換）
         "_user_has_pin":  False,  # 使用者是否已設定 PIN
+        # ── 深淺色模式 ──────────────────────────────────────
+        "_theme":         "light", # "light" | "dark"
+        # ── 頁面路由（取代 sidebar radio）──────────────────
+        "nav_page":       "🏠 戰情室主控台",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -359,15 +347,28 @@ if "code" in _qp and not st.session_state.get("_oauth_user"):
 # （此時已是 Safari/Chrome，Google OAuth 可正常執行）
 elif "openExternalBrowser" in _qp and not st.session_state.get("_oauth_user"):
     _auth_url_ext = _build_google_auth_url()
-    st.markdown("""
-<div style="text-align:center; padding: 3rem 1rem 1.5rem;">
-  <div style="font-size:56px">⚔️</div>
-  <h1 style="font-size:22px; font-weight:700; margin:0.8rem 0 0.3rem;">美股投資戰情室</h1>
+    _ext_dk = st.session_state.get("_theme", "light") == "dark"
+    _ext_bg  = "#1E293B" if _ext_dk else "#FFFFFF"
+    _ext_bdr = "#334155" if _ext_dk else "#E2E8F0"
+    _ext_txt = "#E2E8F0" if _ext_dk else "#334155"
+    _ext_mut = "#94A3B8" if _ext_dk else "#64748B"
+    st.markdown(f"""
+<style>
+.block-container {{ padding-top:0!important; max-width:100vw!important; padding-left:0!important; padding-right:0!important; }}
+</style>
+""", unsafe_allow_html=True)
+    _ec1, _ec2, _ec3 = st.columns([1, 2, 1])
+    with _ec2:
+        st.markdown(f"""
+<div style="background:{_ext_bg};border-radius:28px;padding:40px 36px 28px;border:1px solid {_ext_bdr};text-align:center;margin-top:12vh;">
+    <div style="font-size:48px;margin-bottom:14px;">⚔️</div>
+    <h1 style="font-size:22px;font-weight:700;margin:0 0 6px;color:{_ext_txt};">美股投資戰情室</h1>
+    <p style="color:{_ext_mut};font-size:13px;margin-bottom:24px;">已切換至外部瀏覽器</p>
 </div>""", unsafe_allow_html=True)
-    if _auth_url_ext:
-        st.info("✅ 已切換至外部瀏覽器，請點下方按鈕以 Google 帳號登入。", icon="📱")
-        st.link_button("🔵　使用 Google 帳號登入", _auth_url_ext,
-                       use_container_width=True, type="primary")
+        if _auth_url_ext:
+            st.info("✅ 請點下方按鈕以 Google 帳號登入", icon="📱")
+            st.link_button("🔵　使用 Google 帳號登入", _auth_url_ext,
+                           use_container_width=True, type="primary")
     st.stop()
 
 # ── 未登入：顯示歡迎頁 ────────────────────────────────────
@@ -385,33 +386,65 @@ if not st.session_state.get("_oauth_user"):
     except Exception:
         pass  # 舊版 Streamlit 不支援 st.context，預設為外部瀏覽器
 
-    # 內建瀏覽器 → 中繼頁（LINE 攔截 openExternalBrowser=1 切外部瀏覽器）
-    # 外部瀏覽器 → 直接走 Google OAuth，完全跳過中繼
     _btn_url = (_APP_URL + "?openExternalBrowser=1") if _is_inline_browser else (_auth_url or "")
 
-    st.markdown("""
-<div style="text-align:center; padding: 3rem 1rem 1rem;">
-  <div style="font-size:64px">⚔️</div>
-  <h1 style="font-size:26px; font-weight:700; margin:0.8rem 0 0.4rem;">美股投資戰情室</h1>
-  <p style="color:#666; font-size:14px; margin-bottom:1.5rem;">AI 副官系統 · 登入後資料自動同步，無需重複設定</p>
-</div>
+    # ── 登入頁：全版置中卡片設計 ──────────────────────────
+    _login_dk = st.session_state.get("_theme", "light") == "dark"
+    st.markdown(f"""
+<style>
+.block-container, [data-testid="stMainBlockContainer"] {{
+    padding-top: 0 !important;
+    max-width: 100vw !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}}
+.stApp, [data-testid="stAppViewContainer"] {{
+    background: {'linear-gradient(135deg,#070d1a 0%,#0F172A 100%)' if _login_dk else 'linear-gradient(135deg,#EEF2FF 0%,#F8F9FA 100%)'} !important;
+}}
+</style>
 """, unsafe_allow_html=True)
 
-    if _btn_url:
-        st.link_button("🔵　使用 Google 帳號登入",
-                       _btn_url,
-                       use_container_width=True,
-                       type="primary")
-    else:
-        st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
-
-    st.markdown("""
-<div style="text-align:center; margin-top:1.5rem;">
-  <hr style="opacity:0.2; margin-bottom:1rem;">
-  <span style="color:#999; font-size:12px; line-height:1.8;">
-    🔒 登入資訊僅用於識別身份，不儲存密碼。<br>
-    API 金鑰以加密方式存入資料庫，僅你本人可讀取。
-  </span>
+    _lc1, _lc2, _lc3 = st.columns([1, 2, 1])
+    with _lc2:
+        _card_bg  = "#1E293B" if _login_dk else "#FFFFFF"
+        _card_bdr = "#334155" if _login_dk else "#E2E8F0"
+        _txt_col  = "#E2E8F0" if _login_dk else "#334155"
+        _muted    = "#94A3B8" if _login_dk else "#64748B"
+        _shadow   = "0 20px 60px rgba(0,0,0,0.4)" if _login_dk else "0 20px 60px rgba(0,0,0,0.1)"
+        st.markdown(f"""
+<div style="
+    background:{_card_bg};
+    border-radius:28px;
+    padding:48px 40px 32px;
+    border:1px solid {_card_bdr};
+    box-shadow:{_shadow};
+    text-align:center;
+    margin-top:12vh;
+">
+    <div style="
+        width:72px;height:72px;
+        background:#1E293B;border-radius:18px;
+        display:inline-flex;align-items:center;justify-content:center;
+        font-size:36px;margin-bottom:20px;
+        border:2px solid #D4AF37;
+    ">⚔️</div>
+    <h1 style="font-size:24px;font-weight:800;margin:0 0 6px;color:{_txt_col};letter-spacing:.01em;">美股投資戰情室</h1>
+    <p style="color:{_muted};font-size:13px;margin-bottom:32px;line-height:1.6;">
+        AI 副官系統 · 登入後資料自動同步<br>無需重複設定
+    </p>
+</div>
+""", unsafe_allow_html=True)
+        if _btn_url:
+            st.link_button("🔵　使用 Google 帳號登入", _btn_url,
+                           use_container_width=True, type="primary")
+        else:
+            st.error("OAuth 設定有誤，請確認 Streamlit Secrets 中的 [auth.google] 設定。")
+        st.markdown(f"""
+<div style="text-align:center;margin-top:16px;">
+    <span style="color:{_muted};font-size:11px;line-height:1.9;">
+        🔒 登入資訊僅用於識別身份，不儲存密碼<br>
+        API 金鑰以加密方式存入資料庫，僅你本人可讀取
+    </span>
 </div>
 """, unsafe_allow_html=True)
     st.stop()
@@ -950,17 +983,11 @@ def render_stock_detail(symbol: str, name: str):
     """個股詳細頁面：K線圖 + 估值指標 + 近期新聞（獨立於主分析運行）"""
     from module_stock_chart import fetch_chart_data, build_stock_chart
 
-    # ── 返回 / 重新整理按鈕 ────────────────────────────────
-    btn_back, btn_refresh, _ = st.columns([2, 2, 6])
-    if btn_back.button("← 返回自選股管理", type="secondary"):
-        st.session_state["selected_stock"] = None
-        st.session_state["_go_to_page"] = "📋 自選股管理"
+    # ── 重新整理按鈕（浮在右側）──────────────────────────
+    _, _rf_col = st.columns([8, 2])
+    if _rf_col.button("🔄 重新整理", type="secondary", key="sd_refresh", use_container_width=True):
+        fetch_stock_quick.clear()
         st.rerun()
-    if btn_refresh.button("🔄 重新整理數據", type="secondary"):
-        fetch_stock_quick.clear()          # 清除 yfinance 快取，強制重新抓取
-        st.rerun()
-
-    st.divider()
 
     # ── 優先使用主分析快取；沒有則直接從 yfinance 抓 ────────
     md = st.session_state.get("market_data")
@@ -983,18 +1010,30 @@ def render_stock_detail(symbol: str, name: str):
         st.warning(f"⚠️ Yahoo Finance 目前限速（Too Many Requests），暫時無法取得 {symbol} 詳細數據。請稍等 1～2 分鐘後點擊「🔄 重新整理數據」重試。")
         return
 
-    # ── 標題列 ────────────────────────────────────────────
-    col_title, col_chg = st.columns([3, 2])
-    with col_title:
-        st.markdown(f"## {stock.symbol} &nbsp; {stock.name}")
-    with col_chg:
-        color  = "normal" if stock.change_pct >= 0 else "inverse"
-        sign   = "+" if stock.change_pct >= 0 else ""
-        st.metric(
-            label = "最新收盤",
-            value = f"${stock.price:,.2f}",
-            delta = f"{sign}{stock.change_pct:.2f}%",
-        )
+    # ── 股票標題與報價 ────────────────────────────────────
+    import html as _sd_html
+    _sd_dk = st.session_state.get("_theme", "light") == "dark"
+    _price_color = "#10B981" if stock.change_pct >= 0 else "#EF4444"
+    _chg_sign    = "+" if stock.change_pct >= 0 else ""
+    _sd_txt  = "#E2E8F0" if _sd_dk else "#334155"
+    _sd_muted= "#94A3B8" if _sd_dk else "#64748B"
+    _safe_name = _sd_html.escape(str(stock.name))
+    _safe_sym  = _sd_html.escape(str(stock.symbol))
+    st.markdown(f"""
+<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+    <div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
+            <h1 style="font-size:36px;font-weight:800;margin:0;color:{_sd_txt};">{_safe_sym}</h1>
+            <span style="font-size:18px;color:{_sd_muted};">{_safe_name}</span>
+        </div>
+        <div style="font-size:12px;color:{_sd_muted};">資料來源：Yahoo Finance · {datetime.now().strftime('%Y-%m-%d')}</div>
+    </div>
+    <div style="text-align:right;">
+        <div style="font-size:38px;font-weight:800;font-family:'Courier New',monospace;color:{_price_color};">${stock.price:,.2f}</div>
+        <div style="font-size:16px;font-weight:600;color:{_price_color};">{_chg_sign}{stock.change_pct:.2f}%</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
     import pandas as pd
 
@@ -1541,123 +1580,87 @@ if not _has_any_ai_key and not st.session_state.get("setup_done"):
     st.session_state["setup_done"] = True   # 先標記，避免切頁面重複彈出
     _show_onboarding()
 
-with st.sidebar:
-    st.markdown("### ⚔️ 美股投資戰情室")
-    st.caption("AI 副官系統 · 手動觸發架構")
+# ════════════════════════════════════════════════════════
+#  頂部導覽列（取代 Sidebar）
+# ════════════════════════════════════════════════════════
 
-    # ── 登入使用者資訊 ────────────────────────────────────
-    import html as _html_mod
-    st.divider()
-    _safe_name = _html_mod.escape(str(_current_user_name))
-    # 頭像 URL：僅接受 Google 官方圖片域名，其他一律顯示預設圖示
-    _safe_pic_html = "👤 "
+# ── 讀取當前頁面（session state 路由）────────────────────
+page = st.session_state.get("nav_page", "🏠 戰情室主控台")
+
+# ── PIN 鎖：離開 API 設定頁面時自動上鎖 ──────────────────
+_api_page = "📚 教學 & API設定"
+_prev_nav = st.session_state.get("_prev_nav_page", "")
+if _prev_nav == _api_page and page != _api_page:
+    st.session_state["_pin_unlocked"] = False
+    st.session_state["_pin_fernet"]   = None
+st.session_state["_prev_nav_page"] = page
+
+# ── API key 變數（全域用途）──────────────────────────────
+api_key        = _get_key("ANTHROPIC_API_KEY")
+openai_key     = _get_key("OPENAI_API_KEY")
+google_key     = _get_key("GOOGLE_API_KEY")
+marketaux_key  = _get_key("MARKETAUX_API_KEY")
+finnhub_key_sb = _get_key("FINNHUB_KEY")
+fmp_key_sb     = _get_key("FMP_KEY")
+
+
+def _render_navbar(back_to=None, back_label="返回主控台"):
+    """頂部導覽列：固定視覺 HTML + Streamlit 互動按鈕列"""
+    import html as _h
+    _is_d = st.session_state.get("_theme", "light") == "dark"
+
+    # 使用者頭像 HTML
+    _pic_html = ""
     if _current_user_pic and isinstance(_current_user_pic, str):
-        _pic_url = str(_current_user_pic)
-        if _pic_url.startswith("https://lh3.googleusercontent.com/") or \
-           _pic_url.startswith("https://googleusercontent.com/"):
-            _safe_pic_html = (
-                f"<img src='{_html_mod.escape(_pic_url)}' width='28' height='28' "
-                f"style='border-radius:50%; vertical-align:middle; margin-right:6px'>"
-            )
-    st.markdown(
-        f"<span style='font-size:12px'>{_safe_pic_html}{_safe_name}</span>",
-        unsafe_allow_html=True,
-    )
-    _col_sync, _col_logout = st.columns(2)
-    if _col_sync.button("☁️ 同步", key="btn_sync", use_container_width=True, help="將目前設定儲存到雲端"):
-        try:
-            from module_storage import save_user_data
-            if save_user_data(_current_user_id):
-                st.toast("✅ 已同步至雲端", icon="☁️")
-        except Exception as _se:
-            st.toast(f"同步失敗：{_se}", icon="⚠️")
-    if _col_logout.button("登出", key="btn_logout", use_container_width=True):
-        st.session_state.pop("_oauth_user", None)
-        st.session_state["user_data_loaded"] = False
-        st.rerun()
-
-    st.divider()
-
-    page = st.radio(
-        "導覽",
-        ["🏠 戰情室主控台", "📋 自選股管理", "⚙️ 模型與投資偏好", "📚 教學 & API設定", "📝 版本更新紀錄"],
-        label_visibility = "collapsed",
-        key = "nav_page",
-    )
-
-    # ── PIN 鎖：離開 API 設定頁面時自動上鎖 ──────────────────
-    _api_page = "📚 教學 & API設定"
-    _prev_nav = st.session_state.get("_prev_nav_page", "")
-    if _prev_nav == _api_page and page != _api_page:
-        st.session_state["_pin_unlocked"] = False
-        st.session_state["_pin_fernet"]   = None
-    st.session_state["_prev_nav_page"] = page
-
-    st.divider()
-
-    # ── 系統狀態（簡潔版）────────────────────────────────
-    api_key        = _get_key("ANTHROPIC_API_KEY")
-    openai_key     = _get_key("OPENAI_API_KEY")
-    google_key     = _get_key("GOOGLE_API_KEY")
-    marketaux_key  = _get_key("MARKETAUX_API_KEY")
-    finnhub_key_sb = _get_key("FINNHUB_KEY")
-    fmp_key_sb     = _get_key("FMP_KEY")
-
-    # ── AI 模型 ──────────────────────────────────────────
-    st.caption("🤖 AI 分析模型")
-    from module3_llm_summarizer import MODEL_CATALOG, detect_provider_from_model_id
-    sel_models_sb = st.session_state.get("selected_models", ["claude-sonnet-4-5"])
-    _key_map = {
-        "anthropic": api_key,
-        "openai":    openai_key,
-        "google":    google_key,
-    }
-    for mid in sel_models_sb:
-        cat   = MODEL_CATALOG.get(mid, {})
-        prov  = cat.get("provider") or detect_provider_from_model_id(mid)
-        icon  = cat.get("icon", {"anthropic": "🟠", "openai": "🟢", "google": "🔴"}.get(prov, "🤖"))
-        label = cat.get("label", mid)
-        has_key = bool(_key_map.get(prov, ""))
-        import html as _html_sb
-        _safe_label = _html_sb.escape(str(label))
-        if has_key:
-            st.markdown(
-                f"<span style='font-size:12px'>{icon} {_safe_label}</span>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"<span style='font-size:12px; color:#aaa'>{icon} {_safe_label}　<em>金鑰未設定</em></span>",
-                unsafe_allow_html=True,
+        _purl = str(_current_user_pic)
+        if _purl.startswith("https://lh3.googleusercontent.com/") or \
+           _purl.startswith("https://googleusercontent.com/"):
+            _pic_html = (
+                f"<img src='{_h.escape(_purl)}' width='28' height='28' "
+                "style='border-radius:50%;border:2px solid var(--border);vertical-align:middle;'>"
             )
 
-    st.divider()
+    _safe_nm = _h.escape(str(_current_user_name))
 
-    # ── 財經資料來源 ─────────────────────────────────────
-    st.caption("📡 財經資料來源")
-    _sources = [
-        ("yfinance",   "Yahoo Finance",  True,              "報價 / 基本面"),
-        ("fmp",        "FMP",            bool(fmp_key_sb),  "多年估值預測"),
-        ("finnhub",    "Finnhub",        bool(finnhub_key_sb), "個股新聞 / 評等"),
-        ("marketaux",  "Marketaux",      bool(marketaux_key),  "三類財經新聞"),
-    ]
-    for key, name, active, note in _sources:
-        if active:
-            st.markdown(
-                f"<span style='font-size:12px'>🟢 <b>{name}</b> <span style='color:#888'>— {note}</span></span>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"<span style='font-size:12px; color:#aaa'>⚪ {name} <span style='color:#bbb'>— {note}</span></span>",
-                unsafe_allow_html=True,
-            )
+    # 固定視覺導覽列
+    st.markdown(f"""
+<div class="war-navbar">
+    <div class="nav-brand">
+        <div class="nav-logo">⚔️</div>
+        <span class="nav-title">美股投資戰情室</span>
+    </div>
+    <div class="nav-user">
+        {_pic_html or "👤"}
+        <span>{_safe_nm}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-    st.divider()
-    if st.session_state["last_run"]:
-        st.caption(f"🕐 上次執行：{st.session_state['last_run']}")
-    else:
-        st.caption("尚未執行分析")
+    # 互動按鈕列
+    _nl, _nr = st.columns([6, 4])
+    with _nl:
+        if back_to:
+            if st.button(f"← {back_label}", key="nb_back"):
+                st.session_state["nav_page"] = back_to
+                st.session_state["selected_stock"] = None
+                st.rerun()
+    with _nr:
+        _b1, _b2, _b3 = st.columns(3)
+        _icon_theme = "☀️" if _is_d else "🌙"
+        if _b1.button(_icon_theme, key="nb_theme", help="切換深淺色模式"):
+            st.session_state["_theme"] = "light" if _is_d else "dark"
+            st.rerun()
+        if _b2.button("☁️", key="nb_sync", help="同步資料至雲端"):
+            try:
+                from module_storage import save_user_data
+                if save_user_data(_current_user_id):
+                    st.toast("✅ 已同步至雲端", icon="☁️")
+            except Exception as _se:
+                st.toast(f"同步失敗：{_se}", icon="⚠️")
+        if _b3.button("登出", key="nb_logout"):
+            st.session_state.pop("_oauth_user", None)
+            st.session_state["user_data_loaded"] = False
+            st.rerun()
 
 
 
@@ -1667,13 +1670,13 @@ with st.sidebar:
 
 _sel = st.session_state.get("selected_stock")
 
-# 如果使用者在個股頁面點擊了 sidebar 的其他頁面，
-# 優先尊重導覽意圖：清除個股狀態，讓路由正常進入目標頁面。
+# 若使用者在個股頁面點擊導覽跳頁，優先清除個股狀態
 if _sel is not None and page != "📋 自選股管理":
     st.session_state["selected_stock"] = None
     _sel = None
 
 if _sel is not None:
+    _render_navbar(back_to="📋 自選股管理", back_label="返回自選股")
     render_stock_detail(_sel["symbol"], _sel["name"])
 
 # ════════════════════════════════════════════════════════
@@ -1681,74 +1684,73 @@ if _sel is not None:
 # ════════════════════════════════════════════════════════
 
 elif page == "🏠 戰情室主控台":
-    st.header("戰情室主控台")
+    _render_navbar()
 
     # ── 警戒等級徽章 ──────────────────────────────────────
     assessment = st.session_state.get("assessment")
+    _alert_labels = {
+        "GREEN":  ("🟢 GREEN  正常分析模式",  "alert-green"),
+        "YELLOW": ("🟡 YELLOW 謹慎警戒模式", "alert-yellow"),
+        "RED":    ("🔴 RED    風險中斷模式",  "alert-red"),
+        "BLACK":  ("⚫ BLACK  黑天鵝防禦",    "alert-black"),
+    }
     if assessment:
         lv = assessment.alert_level.value.upper()
-        labels = {
-            "GREEN":  ("🟢 GREEN  正常分析模式",  "alert-green"),
-            "YELLOW": ("🟡 YELLOW 謹慎警戒模式", "alert-yellow"),
-            "RED":    ("🔴 RED    風險中斷模式",  "alert-red"),
-            "BLACK":  ("⚫ BLACK  黑天鵝防禦",    "alert-black"),
-        }
-        text, cls = labels.get(lv, (lv, "alert-green"))
+        text, cls = _alert_labels.get(lv, (lv, "alert-green"))
         st.markdown(f'<div class="{cls}">{text}</div>', unsafe_allow_html=True)
-        st.markdown("")
     else:
         st.markdown('<div class="alert-green">── 等待首次分析</div>', unsafe_allow_html=True)
-        st.markdown("")
+    st.markdown("")
 
-    # ── 總經指標（3+3 滿版排列）──────────────────────────
+    # ── 總經指標（KPI 卡片 3+3）────────────────────────────
     md = st.session_state.get("market_data")
     c1, c2, c3 = st.columns(3)
     c4, c5, c6 = st.columns(3)
 
     if md:
-        sp_chg   = round((md.sp500  - md.sp500_prev)  / md.sp500_prev  * 100, 2) if md.sp500_prev  else 0
-        nq_chg   = round((md.nasdaq - md.nasdaq_prev) / md.nasdaq_prev * 100, 2) if md.nasdaq_prev else 0
-        dj_chg   = round((md.djia   - md.djia_prev)   / md.djia_prev   * 100, 2) if md.djia_prev   else 0
-        c1.metric("VIX　恐慌指數",    f"{md.vix:.2f}")
-        c2.metric("US10Y　美債10年",  f"{md.us10y:.3f}%")
-        c3.metric("DXY　美元指數",    f"{md.dxy:.2f}")
-        c4.metric("S&P 500　標普500", f"{md.sp500:,.0f}",  f"{sp_chg:+.2f}%")
-        c5.metric("NASDAQ　納斯達克", f"{md.nasdaq:,.0f}", f"{nq_chg:+.2f}%")
-        c6.metric("DJIA　道瓊指數",   f"{md.djia:,.0f}",   f"{dj_chg:+.2f}%")
+        sp_chg = round((md.sp500  - md.sp500_prev)  / md.sp500_prev  * 100, 2) if md.sp500_prev  else 0
+        nq_chg = round((md.nasdaq - md.nasdaq_prev) / md.nasdaq_prev * 100, 2) if md.nasdaq_prev else 0
+        dj_chg = round((md.djia   - md.djia_prev)   / md.djia_prev   * 100, 2) if md.djia_prev   else 0
+        c1.metric("VIX 恐慌指數",    f"{md.vix:.2f}")
+        c2.metric("US10Y 美債10年",  f"{md.us10y:.3f}%")
+        c3.metric("DXY 美元指數",    f"{md.dxy:.2f}")
+        c4.metric("S&P 500 標普500", f"{md.sp500:,.0f}",  f"{sp_chg:+.2f}%")
+        c5.metric("NASDAQ 納斯達克", f"{md.nasdaq:,.0f}", f"{nq_chg:+.2f}%")
+        c6.metric("DJIA 道瓊指數",   f"{md.djia:,.0f}",   f"{dj_chg:+.2f}%")
     else:
-        c1.metric("VIX　恐慌指數",    "──")
-        c2.metric("US10Y　美債10年",  "──")
-        c3.metric("DXY　美元指數",    "──")
-        c4.metric("S&P 500　標普500", "──")
-        c5.metric("NASDAQ　納斯達克", "──")
-        c6.metric("DJIA　道瓊指數",   "──")
+        for _m, _mc in [("VIX 恐慌指數",c1),("US10Y 美債10年",c2),("DXY 美元指數",c3),
+                         ("S&P 500 標普500",c4),("NASDAQ 納斯達克",c5),("DJIA 道瓊指數",c6)]:
+            _mc.metric(_m, "──")
 
-    st.divider()
+    st.markdown("")
 
-    # ── 啟動按鈕 ─────────────────────────────────────────
-    col_btn, col_hint = st.columns([2, 5])
-    with col_btn:
+    # ── 啟動分析按鈕 + 功能模組導覽 ──────────────────────
+    _is_dk_hp = st.session_state.get("_theme", "light") == "dark"
+    _divider_color = "#334155" if _is_dk_hp else "#E2E8F0"
+    _muted_color   = "#94A3B8" if _is_dk_hp else "#64748B"
+    _txt_color     = "#E2E8F0" if _is_dk_hp else "#334155"
+    _card_color    = "#1E293B" if _is_dk_hp else "#FFFFFF"
+    _card_border   = "#334155" if _is_dk_hp else "#E2E8F0"
+
+    # 分析啟動區
+    _run_col, _hint_col = st.columns([3, 7])
+    with _run_col:
         run_disabled = not bool(api_key)
-        if st.button(
-            "🚀 啟動完整分析",
-            disabled  = run_disabled,
-            use_container_width = True,
-            type      = "primary",
-        ):
+        if st.button("🚀 啟動完整分析", disabled=run_disabled,
+                     use_container_width=True, type="primary", key="btn_run_analysis"):
             st.caption("⏳ 預計需要 30–90 秒（依模型與網路速度），請勿關閉頁面")
             prog = st.progress(0, text="初始化中...")
             run_full_analysis(prog=prog)
             st.rerun()
-
-    with col_hint:
+    with _hint_col:
         if not api_key:
-            st.warning("請先確認 ANTHROPIC_API_KEY 已在 .env 設定")
+            st.warning("請先至「📚 教學 & API設定」設定 AI 模型金鑰")
         else:
-            st.caption("手動觸發 · 單次執行 · 零自動輪詢")
+            last = st.session_state.get("last_run")
+            st.caption(f"手動觸發 · 單次執行 · 零自動輪詢" + (f"　|　🕐 上次執行：{last}" if last else ""))
 
-    # ── 觸發規則區塊 ─────────────────────────────────────
+    # ── 觸發規則 ──────────────────────────────────────────
     if assessment and assessment.triggered_rules:
-        st.divider()
         lv  = assessment.alert_level.value.upper()
         cls = "rule-red" if lv in ("RED","BLACK") else "rule-yell" if lv == "YELLOW" else "rule-blk"
         for rule in assessment.triggered_rules:
@@ -1761,11 +1763,43 @@ elif page == "🏠 戰情室主控台":
         for s in assessment.fomo_signals:
             st.warning(f"⚠️ {s}")
 
-    # ── 市場情緒儀表板：多模型報告 ────────────────────────────────
+    # ── 功能模組導覽卡片 ──────────────────────────────────
+    st.markdown(f"""
+<div style="display:flex;align-items:center;gap:12px;margin:24px 0 16px;">
+    <span style="font-size:15px;font-weight:600;color:{_txt_color};">功能模組</span>
+    <div style="height:1px;flex-grow:1;background:{_divider_color};"></div>
+</div>
+""", unsafe_allow_html=True)
+
+    _MODULES = [
+        ("📋", "自選股管理",      "管理關注清單與板塊分類",    "📋 自選股管理"),
+        ("⚙️", "模型與投資偏好",  "設定 AI 模型與分析風格",    "⚙️ 模型與投資偏好"),
+        ("📚", "教學 & API設定", "金鑰管理、申請指南與教學", "📚 教學 & API設定"),
+        ("📝", "版本更新紀錄",    "查看最新功能與修正紀錄",    "📝 版本更新紀錄"),
+    ]
+    _mod_cols = st.columns(len(_MODULES))
+    for _mi, (_icon, _title, _desc, _nav_target) in enumerate(_MODULES):
+        with _mod_cols[_mi]:
+            st.markdown(f"""
+<div style="
+    background:{_card_color};border:1px solid {_card_border};
+    border-radius:20px;padding:22px 18px 14px;
+    box-shadow:{'0 4px 16px rgba(0,0,0,0.3)' if _is_dk_hp else '0 4px 16px rgba(0,0,0,0.05)'};
+    margin-bottom:4px;
+">
+    <div style="font-size:26px;margin-bottom:8px;">{_icon}</div>
+    <div style="font-weight:700;font-size:14px;color:{_txt_color};margin-bottom:4px;">{_title}</div>
+    <div style="font-size:12px;color:{_muted_color};line-height:1.5;">{_desc}</div>
+</div>""", unsafe_allow_html=True)
+            if st.button("前往 →", key=f"nav_{_mi}", use_container_width=True):
+                st.session_state["nav_page"] = _nav_target
+                st.rerun()
+
+    # ── AI 市場分析報告 ──────────────────────────────────
     multi_rpts = st.session_state.get("multi_reports", {})
     if multi_rpts:
         st.divider()
-        valid = {mid: r for mid, r in multi_rpts.items() if not r.get("error")}
+        valid  = {mid: r for mid, r in multi_rpts.items() if not r.get("error")}
         errors = {mid: r for mid, r in multi_rpts.items() if r.get("error")}
         for mid, r in errors.items():
             st.error(f"⚠️ {r.get('label', mid)} 生成失敗：{r['error']}")
@@ -1784,7 +1818,7 @@ elif page == "🏠 戰情室主控台":
                 for tab, (mid, r) in zip(tabs, valid.items()):
                     with tab:
                         c1, c2, c3 = st.columns(3)
-                        c1.metric("⏱ 生成時間",    f"{r.get('elapsed_sec', '?')} 秒")
+                        c1.metric("⏱ 生成時間",    f"{r.get('elapsed_sec','?')} 秒")
                         c2.metric("📥 輸入 Tokens", f"{r.get('input_tokens',0):,}")
                         c3.metric("📤 輸出 Tokens", f"{r.get('output_tokens',0):,}")
                         st.markdown(r.get("report", r.get("text", "")))
@@ -1800,7 +1834,8 @@ elif page == "🏠 戰情室主控台":
 # ════════════════════════════════════════════════════════
 
 elif page == "📋 自選股管理":
-    st.header("自選股管理")
+    _render_navbar(back_to="🏠 戰情室主控台")
+    st.markdown("## 自選股管理")
     tab_list, tab_add = st.tabs(["📋 我的清單", "➕ 新增股票"])
 
         # ── 我的清單 ────────────────────────────────────────
@@ -1948,7 +1983,8 @@ elif page == "📋 自選股管理":
 # ════════════════════════════════════════════════════════
 
 elif page == "⚙️ 模型與投資偏好":
-    st.header("⚙️ 模型與投資偏好設定")
+    _render_navbar(back_to="🏠 戰情室主控台")
+    st.markdown("## ⚙️ 模型與投資偏好設定")
 
     from module3_llm_summarizer import MODEL_CATALOG, detect_provider_from_model_id
 
@@ -2170,7 +2206,8 @@ elif page == "⚙️ 模型與投資偏好":
 # ════════════════════════════════════════════════════════
 
 elif page == "📚 教學 & API設定":
-    st.header("📚 教學指南 & API 設定")
+    _render_navbar(back_to="🏠 戰情室主控台")
+    st.markdown("## 📚 教學指南 & API 設定")
 
     tab_keys, tab_ai, tab_data = st.tabs([
         "🔑 API 金鑰管理",
@@ -2751,11 +2788,25 @@ Streamlit Cloud 會**自動偵測並重新部署**，網址不會改變。
 # ════════════════════════════════════════════════════════
 
 elif page == "📝 版本更新紀錄":
-    st.header("📝 版本更新紀錄")
+    _render_navbar(back_to="🏠 戰情室主控台")
+    st.markdown("## 📝 版本更新紀錄")
     st.caption("記錄每次迭代的新增功能、修正與調整，由最新版本往前排列。")
     st.divider()
 
     _CHANGELOG = [
+        ("v1.31", "精品 UI/UX 全面改版", [
+            ("新增", [
+                "無側邊欄設計：移除傳統 Sidebar，改為固定頂部導覽列（毛玻璃效果），頁面切換改用首頁卡片入口 + 子頁面返回按鈕，操作更直覺。",
+                "深淺色模式切換：頂部導覽列新增 🌙/☀️ 切換按鈕，CSS 變數驅動全站主題，深色模式採深邃藍黑色調 (#0F172A)，淺色模式保持潔白質感。",
+                "精品登入頁：Google OAuth 登入頁改為全版置中卡片設計，帶毛玻璃漸層背景與金色 Logo，視覺大幅升級。",
+                "首頁功能模組卡片：總經指標下方新增 4 格功能模組導覽卡片（自選股管理、模型設定、API設定、版本紀錄），取代側欄導覽。",
+                "個股頁面大標題設計：股票代號與價格改用 HTML 精排，收盤價以 38px 等寬字體配合漲跌顏色顯示，視覺層次感更強。",
+            ]),
+            ("調整", [
+                "KPI 指標卡片升級：六大總經指標卡片改用圓角 18px 設計，加入柔和陰影與等寬字體報價。",
+                "深淺色模式主題色板：淺色 (#F8F9FA 背景 / #FFFFFF 卡片) 與深色 (#0F172A 背景 / #1E293B 卡片) 完整切換，文字、邊框、陰影全數隨主題調整。",
+            ]),
+        ]),
         ("v1.30", "PIN 碼零知識 API 金鑰保護", [
             ("安全新增", [
                 "PIN 碼密碼鎖：使用者可在「API 金鑰管理」頁面設定 4–8 位數字 PIN，API 金鑰以 PBKDF2-HMAC-SHA256（26 萬次迭代）衍生的 Fernet 金鑰加密存入 Supabase，任何人（包括管理員）都無法查詢（零知識架構）。",
@@ -2903,7 +2954,7 @@ elif page == "📝 版本更新紀錄":
     ]
 
     for ver, title, sections in _CHANGELOG:
-        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.30")):
+        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.31")):
             for sec_title, items in sections:
                 st.markdown(f"**{sec_title}**")
                 for item in items:
