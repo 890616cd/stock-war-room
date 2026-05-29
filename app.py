@@ -2620,6 +2620,27 @@ elif page == "📝 版本更新紀錄":
     st.divider()
 
     _CHANGELOG = [
+        ("v1.29", "公開測試前全面安全強化", [
+            ("安全修正", [
+                "OAuth email_verified 驗證：Google 登入流程新增 verified_email 欄位檢查，未驗證信箱的帳號將被拒絕登入。",
+                "XSS 防護強化：使用者名稱、頭像 URL、警戒規則文字、模型標籤等所有動態注入 HTML 的內容一律經 html.escape() 處理；頭像限縮為 Google 官方域名白名單，拒絕任意外部 URL。",
+                "API Key 多用戶隔離修正：module1_data_fetcher 與 module1_news_engine 的 Finnhub / FMP / Marketaux Key 原從 os.environ 讀取（雲端跨 session 共用），改為優先讀取 session_keys，與其他模組架構一致，確保各用戶 Key 完全隔離。",
+                "加密金鑰 Fallback 移除：module_storage.py 移除硬寫死的預設 ENCRYPTION_KEY，未設定時直接拒絕操作並顯示明確錯誤，不再靜默使用已知弱金鑰。",
+                "錯誤訊息資訊洩漏修正：run_full_analysis() 與 save_user_data() 例外處理改為只顯示通用提示，完整 traceback 改寫至 server log，防止 API 路徑、資料庫連線字串等敏感細節外洩。",
+                "股票代號格式驗證：新增股票時對代號進行正規表達式檢查（大寫字母 / 數字 / . - ^，最長 12 字元），防止任意字串傳入 yfinance。",
+                "自訂模型 ID 格式驗證：自訂模型 ID 輸入框新增格式驗證（英數字及 . - _ : /，最長 100 字元）。",
+                "custom_prompt 長度限制：投資偏好說明新增 500 字上限，UI 層即時顯示字數，DB 層同步 CHECK constraint 雙重保護。",
+                "feedparser 無 Timeout 修正：RSS 新聞抓取改以 requests.get(timeout=8) 先取得內容再交由 feedparser 解析，避免網路異常無限等待。",
+                "Supabase 錯誤訊息清理：雲端同步失敗時不再將原始例外訊息（含資料庫 URL）顯示於 UI。",
+            ]),
+            ("新增", [
+                "API 金鑰刪除鍵：AI 模型金鑰（Anthropic / OpenAI / Google）與財經資料 API 金鑰（Marketaux / Finnhub / FMP / Alpha Vantage）各自新增「🗑️」刪除按鈕，一鍵清除並同步 Supabase。",
+                "API 金鑰驗證機制：儲存前自動對各服務發起最小化測試請求確認金鑰有效且填入正確欄位，驗證失敗時顯示明確錯誤訊息，驗證通過才寫入儲存。",
+            ]),
+            ("調整", [
+                "selected_models 預設值改為空陣列：新用戶登入後不預設任何 AI 模型，引導自行設定，避免誤以為系統內建特定模型。",
+            ]),
+        ]),
         ("v1.28", "個股 AI 戰術建議格式優化", [
             ("調整", [
                 "自訂投資風格提示詞（custom_prompt）現在直接驅動 AI 輸出格式：使用者設定的分析框架會完整出現在 user_prompt 中，AI 依序逐項輸出，不再被系統 prompt 預設格式覆蓋。",
@@ -2738,7 +2759,7 @@ elif page == "📝 版本更新紀錄":
     ]
 
     for ver, title, sections in _CHANGELOG:
-        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.28")):
+        with st.expander(f"**{ver}　{title}**", expanded=(ver == "v1.29")):
             for sec_title, items in sections:
                 st.markdown(f"**{sec_title}**")
                 for item in items:
