@@ -423,6 +423,118 @@ div[data-testid="stAlert"][data-baseweb="notification"] {{
 .data-tbl .dn  {{ color:var(--down)!important; }}
 .data-tbl .mut {{ color:var(--muted)!important; font-size:11px; }}
 
+/* ═══ 報告底框：區塊標題 + 元資訊條 ═══ */
+/* 報告區塊最外層標題列（金色調） */
+.report-section-hd {{
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 14px 20px;
+    background: {'linear-gradient(135deg,rgba(212,175,55,0.10),rgba(212,175,55,0.04))' if _dk else 'linear-gradient(135deg,rgba(212,175,55,0.08),rgba(212,175,55,0.03))'};
+    border: 1px solid {'rgba(212,175,55,0.30)' if _dk else 'rgba(212,175,55,0.22)'};
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}}
+.report-section-hd-icon {{
+    font-size: 22px;
+    line-height: 1;
+    flex-shrink: 0;
+}}
+.report-section-hd-title {{
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+}}
+.report-section-hd-sub {{
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+}}
+/* 報告底框本體（接在標題列下方，圓角） */
+.report-card-body {{
+    background: var(--card);
+    border: 1px solid {'rgba(212,175,55,0.22)' if _dk else 'rgba(212,175,55,0.16)'};
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 16px 16px;
+    padding: 22px 24px 18px 24px;
+    box-shadow: {'0 4px 24px rgba(0,0,0,0.30)' if _dk else '0 4px 16px rgba(0,0,0,0.06)'};
+    margin-bottom: 6px;
+}}
+/* 元資訊條（模型名 / 耗時 / token 數） */
+.report-meta-bar {{
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 7px 12px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 14px;
+}}
+.report-meta-bar strong {{ color: var(--text); font-weight: 600; }}
+.report-meta-sep {{
+    color: var(--border);
+    font-size: 14px;
+}}
+
+/* ═══ 分析中 Loading 轉圈動畫 ═══ */
+@keyframes war-spin {{
+    0%   {{ transform: rotate(0deg); }}
+    100% {{ transform: rotate(360deg); }}
+}}
+@keyframes war-pulse {{
+    0%,100% {{ opacity:1; }}
+    50%      {{ opacity:0.55; }}
+}}
+.war-loader {{
+    display: inline-block;
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    border: 3.5px solid {'rgba(212,175,55,0.18)' if _dk else 'rgba(212,175,55,0.22)'};
+    border-top-color: var(--brand);
+    border-right-color: var(--brand);
+    border-radius: 50%;
+    animation: war-spin 0.7s cubic-bezier(0.45,0.05,0.55,0.95) infinite;
+}}
+.war-loading-box {{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    background: {'rgba(212,175,55,0.07)' if _dk else 'rgba(212,175,55,0.05)'};
+    border: 1px solid {'rgba(212,175,55,0.28)' if _dk else 'rgba(212,175,55,0.22)'};
+    border-radius: 14px;
+    margin-bottom: 10px;
+    animation: war-pulse 2.2s ease-in-out infinite;
+}}
+.war-loading-title {{
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 3px;
+}}
+.war-loading-sub {{
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+}}
+.war-loading-dots::after {{
+    content: '';
+    animation: war-dots 1.4s steps(4,end) infinite;
+}}
+@keyframes war-dots {{
+    0%   {{ content: '';   }}
+    25%  {{ content: '.';  }}
+    50%  {{ content: '..'; }}
+    75%  {{ content: '...'; }}
+    100% {{ content: '';   }}
+}}
+
 /* ═══ 手機響應式 ═══ */
 @media (max-width: 768px) {{
     .block-container, [data-testid="stMainBlockContainer"] {{
@@ -1558,6 +1670,17 @@ def render_stock_detail(symbol: str, name: str):
     elif st.session_state[tactic_key]:
         # ── 已生成：顯示結果（支援多模型）──────────
         cached = st.session_state[tactic_key]
+        # 報告區塊標題列
+        st.markdown(
+            f'<div class="report-section-hd">'
+            f'<div class="report-section-hd-icon">🎯</div>'
+            f'<div>'
+            f'<div class="report-section-hd-title">AI 戰術建議 ＆ 新聞分析報告 — {stock.symbol}</div>'
+            f'<div class="report-section-hd-sub">以下為 AI 根據市場環境與個股數據生成的操作建議，僅供參考，不構成投資建議</div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
         if isinstance(cached, dict):
             valid_r = {mid: r for mid, r in cached.items() if not r.get("error")}
             for mid, r in cached.items():
@@ -1566,20 +1689,44 @@ def render_stock_detail(symbol: str, name: str):
             if valid_r:
                 if len(valid_r) == 1:
                     mid, r = next(iter(valid_r.items()))
-                    st.caption(f"{r.get('icon','🤖')} **{r.get('label')}** · ⏱ {r.get('elapsed_sec')}s · 輸入 {r.get('input_tokens',0):,} / 輸出 {r.get('output_tokens',0):,} tokens")
+                    st.markdown(
+                        f'<div class="report-card-body">'
+                        f'<div class="report-meta-bar">'
+                        f'{r.get("icon","🤖")} <strong>{r.get("label","")}</strong>'
+                        f'<span class="report-meta-sep">|</span>'
+                        f'⏱ {r.get("elapsed_sec","?")} 秒'
+                        f'<span class="report-meta-sep">|</span>'
+                        f'📥 輸入 {r.get("input_tokens",0):,} tokens'
+                        f'<span class="report-meta-sep">|</span>'
+                        f'📤 輸出 {r.get("output_tokens",0):,} tokens'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
                     st.markdown(r.get("text", ""))
+                    st.markdown('</div>', unsafe_allow_html=True)
                 else:
+                    st.markdown('<div class="report-card-body">', unsafe_allow_html=True)
                     tab_labels = [f"{r.get('icon','🤖')} {r.get('label', mid)}" for mid, r in valid_r.items()]
                     tabs = st.tabs(tab_labels)
                     for tab, (mid, r) in zip(tabs, valid_r.items()):
                         with tab:
-                            c1, c2, c3 = st.columns(3)
-                            c1.metric("⏱ 生成時間", f"{r.get('elapsed_sec','?')} 秒")
-                            c2.metric("📥 輸入", f"{r.get('input_tokens',0):,}")
-                            c3.metric("📤 輸出", f"{r.get('output_tokens',0):,}")
+                            st.markdown(
+                                f'<div class="report-meta-bar">'
+                                f'⏱ 生成 <strong>{r.get("elapsed_sec","?")} 秒</strong>'
+                                f'<span class="report-meta-sep">|</span>'
+                                f'📥 輸入 <strong>{r.get("input_tokens",0):,}</strong> tokens'
+                                f'<span class="report-meta-sep">|</span>'
+                                f'📤 輸出 <strong>{r.get("output_tokens",0):,}</strong> tokens'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
                             st.markdown(r.get("text", ""))
+                    st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.markdown(cached)  # 向後相容舊字串格式
+            # 向後相容舊字串格式
+            st.markdown('<div class="report-card-body">', unsafe_allow_html=True)
+            st.markdown(cached)
+            st.markdown('</div>', unsafe_allow_html=True)
         if st.button("🔄 重新生成", key=f"regen_{stock.symbol}", type="secondary"):
             st.session_state[tactic_key] = None
             st.session_state[news_key_s] = None
@@ -1598,6 +1745,21 @@ def render_stock_detail(symbol: str, name: str):
             from datetime import timedelta
 
             st.toast(f"⏳ 正在生成 {stock.symbol} 分析，請稍候 20–45 秒…", icon="🔄")
+            # ── Loading 轉圈 + 等待說明 ──────────────────
+            _stk_loading = st.empty()
+            _stk_loading.markdown(
+                f'<div class="war-loading-box">'
+                f'<div class="war-loader"></div>'
+                f'<div>'
+                f'<div class="war-loading-title">正在分析 {stock.symbol}<span class="war-loading-dots"></span></div>'
+                f'<div class="war-loading-sub">'
+                f'⏱ 預計需要 <strong>20–45 秒</strong>，依選擇的 AI 模型數量而定<br>'
+                f'請耐心等候，<strong>請勿關閉或重新整理頁面</strong>'
+                f'</div>'
+                f'</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
             _sprog = st.progress(0, text=f"📰 正在搜尋 {stock.symbol} 近期新聞...")
 
             # ── Step 1：抓取個股近 3 日新聞 ────────────
@@ -1881,6 +2043,7 @@ def render_stock_detail(symbol: str, name: str):
                 res = call_model(mid, sys_p_stock, user_prompt)
                 multi_res[mid] = res
             _sprog.progress(100, text="✅ 完成")
+            _stk_loading.empty()        # 分析完成後清除 Loading 框
             st.session_state[tactic_key] = multi_res
             st.rerun()
 
@@ -2061,8 +2224,24 @@ elif page == "🏠 戰情室主控台":
         if st.button("🚀 啟動完整分析", disabled=run_disabled,
                      use_container_width=True, type="primary", key="btn_run_analysis"):
             st.toast("⏳ 分析啟動中，請稍候 30–90 秒…", icon="🔄")
+            # ── Loading 轉圈 + 等待說明 ──────────────────
+            _main_loading = st.empty()
+            _main_loading.markdown(
+                '<div class="war-loading-box">'
+                '<div class="war-loader"></div>'
+                '<div>'
+                '<div class="war-loading-title">完整分析執行中<span class="war-loading-dots"></span></div>'
+                '<div class="war-loading-sub">'
+                '⏱ 預計需要 <strong>30–90 秒</strong>，依網路與 AI 回應速度而定<br>'
+                '請耐心等候，<strong>請勿關閉或重新整理頁面</strong>'
+                '</div>'
+                '</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
             prog = st.progress(0, text="初始化中...")
             run_full_analysis(prog=prog)
+            _main_loading.empty()       # 分析完成後清除 Loading 框
             st.toast("✅ 分析完成！", icon="🎯")
             st.rerun()
     with _hint_col:
@@ -2122,6 +2301,17 @@ elif page == "🏠 戰情室主控台":
     multi_rpts = st.session_state.get("multi_reports", {})
     if multi_rpts:
         st.divider()
+        # 報告區塊標題列
+        st.markdown(
+            '<div class="report-section-hd">'
+            '<div class="report-section-hd-icon">🤖</div>'
+            '<div>'
+            '<div class="report-section-hd-title">AI 市場戰情報告</div>'
+            '<div class="report-section-hd-sub">以下為 AI 根據大盤數據、法說逐字稿與近期新聞生成的完整市場分析報告</div>'
+            '</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         valid  = {mid: r for mid, r in multi_rpts.items() if not r.get("error")}
         errors = {mid: r for mid, r in multi_rpts.items() if r.get("error")}
         for mid, r in errors.items():
@@ -2129,25 +2319,56 @@ elif page == "🏠 戰情室主控台":
         if valid:
             if len(valid) == 1:
                 mid, r = next(iter(valid.items()))
-                st.caption(
-                    f"{r.get('icon','🤖')} **{r.get('label')}** · "
-                    f"⏱ {r.get('elapsed_sec')}s · "
-                    f"輸入 {r.get('input_tokens',0):,} / 輸出 {r.get('output_tokens',0):,} tokens"
+                # 元資訊條
+                st.markdown(
+                    f'<div class="report-card-body">'
+                    f'<div class="report-meta-bar">'
+                    f'{r.get("icon","🤖")} <strong>{r.get("label","")}</strong>'
+                    f'<span class="report-meta-sep">|</span>'
+                    f'⏱ {r.get("elapsed_sec","?")} 秒'
+                    f'<span class="report-meta-sep">|</span>'
+                    f'📥 輸入 {r.get("input_tokens",0):,} tokens'
+                    f'<span class="report-meta-sep">|</span>'
+                    f'📤 輸出 {r.get("output_tokens",0):,} tokens'
+                    f'</div>',
+                    unsafe_allow_html=True,
                 )
                 st.markdown(r.get("report", r.get("text", "")))
+                st.markdown('</div>', unsafe_allow_html=True)
             else:
+                st.markdown('<div class="report-card-body">', unsafe_allow_html=True)
                 tab_labels = [f"{r.get('icon','🤖')} {r.get('label', mid)}" for mid, r in valid.items()]
                 tabs = st.tabs(tab_labels)
                 for tab, (mid, r) in zip(tabs, valid.items()):
                     with tab:
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("⏱ 生成時間",    f"{r.get('elapsed_sec','?')} 秒")
-                        c2.metric("📥 輸入 Tokens", f"{r.get('input_tokens',0):,}")
-                        c3.metric("📤 輸出 Tokens", f"{r.get('output_tokens',0):,}")
+                        # 元資訊條
+                        st.markdown(
+                            f'<div class="report-meta-bar">'
+                            f'⏱ 生成 <strong>{r.get("elapsed_sec","?")} 秒</strong>'
+                            f'<span class="report-meta-sep">|</span>'
+                            f'📥 輸入 <strong>{r.get("input_tokens",0):,}</strong> tokens'
+                            f'<span class="report-meta-sep">|</span>'
+                            f'📤 輸出 <strong>{r.get("output_tokens",0):,}</strong> tokens'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
                         st.markdown(r.get("report", r.get("text", "")))
+                st.markdown('</div>', unsafe_allow_html=True)
     elif st.session_state.get("market_analysis"):
         st.divider()
+        st.markdown(
+            '<div class="report-section-hd">'
+            '<div class="report-section-hd-icon">🤖</div>'
+            '<div>'
+            '<div class="report-section-hd-title">AI 市場戰情報告</div>'
+            '<div class="report-section-hd-sub">以下為 AI 根據大盤數據生成的完整市場分析報告</div>'
+            '</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="report-card-body">', unsafe_allow_html=True)
         st.markdown(st.session_state["market_analysis"])
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 
