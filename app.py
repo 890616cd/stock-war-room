@@ -109,6 +109,7 @@ section[data-testid="stMain"] > div {{
 }}
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) [data-testid="stButton"] button:hover {{
     background: {'rgba(255,255,255,0.12)' if _dk else 'rgba(0,0,0,0.07)'} !important;
+    box-shadow: none !important;
 }}
 /* 登出按鈕：細字 */
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) > [data-testid="stColumn"]:last-child [data-testid="stButton"] button {{
@@ -331,6 +332,76 @@ div[data-testid="stAlert"][data-baseweb="notification"] {{
 [data-testid="stButton"] button:not([kind="primary"]):hover {{
     background:var(--card2)!important;
     border-color:var(--border)!important;
+}}
+
+/* ═══ 按鈕互動特效：hover 放大 + 點擊壓下（全站通用）═══ */
+/* 基礎 transition：彈簧曲線讓 hover 回彈有質感 */
+[data-testid="stButton"] button {{
+    transition:
+        transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.14s ease,
+        background  0.14s ease !important;
+    will-change: transform;
+}}
+/* Hover：微微浮起 + 陰影 */
+[data-testid="stButton"] button:hover {{
+    transform: scale(1.05) translateY(-2px) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,{'0.35' if _dk else '0.13'}) !important;
+}}
+/* Active（按下）：縮小 + 內陷陰影，模擬實體壓鍵 */
+[data-testid="stButton"] button:active {{
+    transform: scale(0.94) translateY(1px) !important;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,{'0.35' if _dk else '0.18'}),
+                0 1px 2px rgba(0,0,0,0.1) !important;
+    transition-duration: 0.06s !important;
+}}
+/* 導覽列透明按鈕：hover 不顯示浮起陰影，只保留縮放 */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) [data-testid="stButton"] button:hover {{
+    transform: scale(1.10) !important;
+    box-shadow: none !important;
+}}
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:nth-child(2) [data-testid="stButton"] button:active {{
+    transform: scale(0.90) translateY(1px) !important;
+    box-shadow: none !important;
+}}
+/* Expander 標題 hover / click */
+[data-testid="stExpander"] details summary {{
+    transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    cursor: pointer;
+}}
+[data-testid="stExpander"] details summary:hover {{
+    transform: scale(1.01) !important;
+}}
+[data-testid="stExpander"] details summary:active {{
+    transform: scale(0.99) translateY(1px) !important;
+    transition-duration: 0.06s !important;
+}}
+/* Tab 標籤 hover / click */
+.stTabs [data-baseweb="tab"] {{
+    transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    cursor: pointer;
+}}
+.stTabs [data-baseweb="tab"]:hover {{
+    transform: scale(1.06) !important;
+}}
+.stTabs [data-baseweb="tab"]:active {{
+    transform: scale(0.94) translateY(1px) !important;
+    transition-duration: 0.06s !important;
+}}
+/* Selectbox / Multiselect 觸發框 hover */
+[data-testid="stSelectbox"]   [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div {{
+    transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    cursor: pointer;
+}}
+[data-testid="stSelectbox"]   [data-baseweb="select"] > div:hover,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div:hover {{
+    transform: scale(1.02) !important;
+}}
+[data-testid="stSelectbox"]   [data-baseweb="select"] > div:active,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div:active {{
+    transform: scale(0.98) translateY(1px) !important;
+    transition-duration: 0.06s !important;
 }}
 
 /* ═══ 自訂資料表格（取代 st.dataframe，完整深淺色支援）═══ */
