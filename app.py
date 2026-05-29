@@ -135,13 +135,14 @@ section[data-testid="stMain"] > div {{
 [data-testid="stMetricValue"] {{ font-size:20px!important; font-weight:700; font-family:'Courier New',monospace; color:var(--text)!important; }}
 [data-testid="stMetricDelta"] {{ font-size:12px!important; }}
 
-/* ═══ 區塊容器 ═══ */
+/* ═══ 區塊容器（= st.container(border=True)，全站僅報告區塊使用）═══ */
+/* 統一使用金色邊框，確保報告外框清晰可見 */
 [data-testid="stVerticalBlockBorderWrapper"] {{
-    background: var(--card) !important;
-    border: 1px solid var(--border) !important;
+    background: {'#1a2540' if _dk else '#FFFFFF'} !important;
+    border: 2px solid {'rgba(212,175,55,0.55)' if _dk else 'rgba(212,175,55,0.40)'} !important;
     border-radius: 20px !important;
-    padding: 20px !important;
-    box-shadow: var(--shadow) !important;
+    padding: 24px !important;
+    box-shadow: {'0 8px 32px rgba(0,0,0,0.40), inset 0 1px 0 rgba(212,175,55,0.12)' if _dk else '0 6px 24px rgba(0,0,0,0.08), inset 0 1px 0 rgba(212,175,55,0.10)'} !important;
 }}
 
 /* ═══ 警戒等級徽章 ═══ */
@@ -451,11 +452,6 @@ div[data-testid="stAlert"][data-baseweb="notification"] {{
     font-size: 11px;
     color: var(--muted);
     line-height: 1.4;
-}}
-/* 報告外框容器：覆寫 stVerticalBlockBorderWrapper，加強金色邊框與陰影 */
-[data-testid="stVerticalBlockBorderWrapper"]:has(.report-section-hd) {{
-    border-color: {'rgba(212,175,55,0.28)' if _dk else 'rgba(212,175,55,0.20)'} !important;
-    box-shadow: {'0 6px 28px rgba(0,0,0,0.32)' if _dk else '0 6px 20px rgba(0,0,0,0.08)'} !important;
 }}
 /* 元資訊條（模型名 / 耗時 / token 數） */
 .report-meta-bar {{
