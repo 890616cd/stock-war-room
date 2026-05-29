@@ -94,6 +94,24 @@ section[data-testid="stMain"] > div {{
     font-size:18px; line-height:1;
 }}
 .nav-title {{ font-size:17px; font-weight:700; color:var(--text); letter-spacing:.01em; }}
+.nav-right {{ display:flex; align-items:center; gap:14px; }}
+.nav-actions {{ display:flex; align-items:center; gap:2px; }}
+.nav-action-btn {{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:32px; height:32px;
+    padding:0 8px;
+    border-radius:8px;
+    text-decoration:none;
+    font-size:15px; line-height:1;
+    color:var(--text);
+    background:transparent;
+    transition:background 0.15s, color 0.15s;
+    cursor:pointer;
+    white-space:nowrap;
+}}
+.nav-action-btn:hover {{ background:var(--card2); }}
+.nav-action-btn.nav-logout {{ font-size:12px; font-weight:600; color:var(--muted); padding:0 10px; }}
+.nav-action-btn.nav-logout:hover {{ color:var(--text); }}
 .nav-user  {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }}
 
 /* ═══ KPI 指標卡片 ═══ */
@@ -165,6 +183,93 @@ hr {{ margin:14px 0!important; opacity:.2; border-color:var(--border); }}
 
 /* ═══ Alert/Info boxes ═══ */
 [data-testid="stAlert"] {{ border-radius:12px!important; }}
+
+/* ═══ 深淺色：Widget 標籤、表單元件全套覆蓋 ═══ */
+/* Widget label text */
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] label,
+[data-testid="stWidgetLabel"] span {{ color:var(--text)!important; }}
+
+/* Caption / helper / info */
+[data-testid="stCaptionContainer"] p,
+small {{ color:var(--muted)!important; }}
+
+/* Headings */
+h1,h2,h3,h4,h5,h6,
+[data-testid="stHeading"] h1,
+[data-testid="stHeading"] h2,
+[data-testid="stHeading"] h3 {{ color:var(--text)!important; }}
+
+/* Number input */
+[data-testid="stNumberInput"] input {{
+    background:var(--card2)!important;
+    color:var(--text)!important;
+    border-color:var(--border)!important;
+    border-radius:10px!important;
+}}
+
+/* Selectbox / multiselect trigger box */
+[data-testid="stSelectbox"]   [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div {{
+    background:var(--card2)!important;
+    border-color:var(--border)!important;
+    border-radius:10px!important;
+}}
+[data-testid="stSelectbox"]   [data-baseweb="select"] span,
+[data-testid="stMultiSelect"] [data-baseweb="select"] span,
+[data-testid="stSelectbox"]   [data-baseweb="select"] div[class],
+[data-testid="stMultiSelect"] [data-baseweb="select"] div[class] {{ color:var(--text)!important; }}
+
+/* Dropdown popup list */
+[data-baseweb="popover"],
+[data-baseweb="menu"] {{ background:var(--card)!important; border-color:var(--border)!important; }}
+[data-baseweb="popover"] [role="option"],
+[data-baseweb="menu"] li {{
+    background:var(--card)!important;
+    color:var(--text)!important;
+}}
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="menu"] li:hover {{ background:var(--card2)!important; }}
+[data-baseweb="popover"] [aria-selected="true"] {{ background:var(--card2)!important; }}
+
+/* Checkbox */
+[data-testid="stCheckbox"] label,
+[data-testid="stCheckbox"] span {{ color:var(--text)!important; }}
+
+/* Radio */
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] p {{ color:var(--text)!important; }}
+
+/* Multiselect tag chips */
+[data-testid="stMultiSelect"] [data-baseweb="tag"] {{
+    background:var(--card2)!important;
+    color:var(--text)!important;
+}}
+
+/* Secondary buttons */
+[data-testid="stButton"] button:not([kind="primary"]):not(.stDownloadButton button) {{
+    background:var(--card2)!important;
+    color:var(--text)!important;
+    border-color:var(--border)!important;
+}}
+[data-testid="stButton"] button:not([kind="primary"]):hover {{
+    background:var(--border)!important;
+}}
+
+/* st.text / st.write paragraphs */
+[data-testid="stText"] p {{ color:var(--text)!important; }}
+
+/* Block container background (for with st.container) */
+[data-testid="stVerticalBlock"] {{ color:var(--text); }}
+
+/* Expander summary & inner text */
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span {{ color:var(--text)!important; }}
+[data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {{ color:var(--text)!important; }}
+
+/* Tab labels */
+.stTabs [data-baseweb="tab"] {{ color:var(--text)!important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {{ color:var(--text)!important; border-bottom-color:var(--brand)!important; }}
 
 /* ═══ 手機響應式 ═══ */
 @media (max-width: 768px) {{
@@ -238,6 +343,11 @@ def _init_state():
             st.session_state[k] = v
 
 _init_state()
+
+# ── 顯示跨 rerun 的 Toast 訊息（如同步結果）────────────────
+_pt = st.session_state.pop("_pending_toast", None)
+if _pt:
+    st.toast(_pt[0], icon=_pt[1])
 
 # ── 中繼導覽：在 sidebar（radio）渲染前套用，避免 widget key 衝突 ──
 if "_go_to_page" in st.session_state:
@@ -370,6 +480,29 @@ elif "openExternalBrowser" in _qp and not st.session_state.get("_oauth_user"):
             st.link_button("🔵　使用 Google 帳號登入", _auth_url_ext,
                            use_container_width=True, type="primary")
     st.stop()
+
+# ── 導覽列快捷操作（query param 觸發）────────────────────
+elif "nav_action" in _qp:
+    _nav_act = _qp.get("nav_action", "")
+    st.query_params.clear()
+    if _nav_act == "theme":
+        st.session_state["_theme"] = (
+            "dark" if st.session_state.get("_theme", "light") == "light" else "light"
+        )
+    elif _nav_act == "logout":
+        st.session_state.pop("_oauth_user", None)
+        st.session_state["user_data_loaded"] = False
+    elif _nav_act == "sync":
+        try:
+            from module_storage import save_user_data
+            _uid_sync = st.session_state.get("_current_user_id_cache", "")
+            if _uid_sync and save_user_data(_uid_sync):
+                st.session_state["_pending_toast"] = ("✅ 已同步至雲端", "☁️")
+            else:
+                st.session_state["_pending_toast"] = ("⚠️ 同步失敗，請確認網路連線", "⚠️")
+        except Exception as _se:
+            st.session_state["_pending_toast"] = (f"⚠️ 同步失敗：{_se}", "⚠️")
+    st.rerun()
 
 # ── 未登入：顯示歡迎頁 ────────────────────────────────────
 if not st.session_state.get("_oauth_user"):
@@ -1605,9 +1738,10 @@ fmp_key_sb     = _get_key("FMP_KEY")
 
 
 def _render_navbar(back_to=None, back_label="返回主控台"):
-    """頂部導覽列：固定視覺 HTML + Streamlit 互動按鈕列"""
+    """頂部導覽列：固定 HTML（含主題/同步/登出按鈕）+ 可選返回鍵"""
     import html as _h
     _is_d = st.session_state.get("_theme", "light") == "dark"
+    _icon_theme = "☀️" if _is_d else "🌙"
 
     # 使用者頭像 HTML
     _pic_html = ""
@@ -1622,44 +1756,32 @@ def _render_navbar(back_to=None, back_label="返回主控台"):
 
     _safe_nm = _h.escape(str(_current_user_name))
 
-    # 固定視覺導覽列
+    # 固定視覺導覽列（主題/同步/登出直接嵌入為 <a> 連結）
     st.markdown(f"""
 <div class="war-navbar">
     <div class="nav-brand">
         <div class="nav-logo">⚔️</div>
         <span class="nav-title">美股投資戰情室</span>
     </div>
-    <div class="nav-user">
-        {_pic_html or "👤"}
-        <span>{_safe_nm}</span>
+    <div class="nav-right">
+        <div class="nav-actions">
+            <a href="?nav_action=theme"  class="nav-action-btn" title="切換深淺色模式">{_icon_theme}</a>
+            <a href="?nav_action=sync"   class="nav-action-btn" title="同步資料至雲端">☁️</a>
+            <a href="?nav_action=logout" class="nav-action-btn nav-logout">登出</a>
+        </div>
+        <div class="nav-user">
+            {_pic_html or "👤"}
+            <span>{_safe_nm}</span>
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-    # 互動按鈕列
-    _nl, _nr = st.columns([6, 4])
-    with _nl:
-        if back_to:
-            if st.button(f"← {back_label}", key="nb_back"):
-                st.session_state["nav_page"] = back_to
-                st.session_state["selected_stock"] = None
-                st.rerun()
-    with _nr:
-        _b1, _b2, _b3 = st.columns(3)
-        _icon_theme = "☀️" if _is_d else "🌙"
-        if _b1.button(_icon_theme, key="nb_theme", help="切換深淺色模式"):
-            st.session_state["_theme"] = "light" if _is_d else "dark"
-            st.rerun()
-        if _b2.button("☁️", key="nb_sync", help="同步資料至雲端"):
-            try:
-                from module_storage import save_user_data
-                if save_user_data(_current_user_id):
-                    st.toast("✅ 已同步至雲端", icon="☁️")
-            except Exception as _se:
-                st.toast(f"同步失敗：{_se}", icon="⚠️")
-        if _b3.button("登出", key="nb_logout"):
-            st.session_state.pop("_oauth_user", None)
-            st.session_state["user_data_loaded"] = False
+    # 返回按鈕（僅子頁面顯示，保留 Streamlit 互動）
+    if back_to:
+        if st.button(f"← {back_label}", key="nb_back"):
+            st.session_state["nav_page"] = back_to
+            st.session_state["selected_stock"] = None
             st.rerun()
 
 
