@@ -3340,6 +3340,19 @@ elif page == "📝 版本更新紀錄":
     st.divider()
 
     _CHANGELOG = [
+        ("v1.32", "互動體驗全面升級", [
+            ("新增", [
+                "全站按鈕互動特效：所有按鈕新增 hover 微浮起放大（scale 1.05 + translateY -2px + 陰影）與 active 實體壓下效果（scale 0.94 + translateY 1px + 內凹陰影），使用彈簧曲線 cubic-bezier(0.34,1.56,0.64,1) 讓回彈有質感；Expander、Tab、Selectbox 亦加入對應特效。",
+                "分析進度 Loading 特效：完整分析與個股分析執行期間，進度條上方新增金色轉圈動畫（雙弧旋轉 + 整體呼吸脈衝框），並明確告知預計等待時間（主控台 30–90 秒 / 個股 20–45 秒），分析完成後自動消失。",
+                "AI 報告外框：主頁市場報告與個股戰術報告包進金色邊框卡片（2px 金色邊框、圓角 20px、深陰影），頂部帶金色漸層 header 條（圖示 + 標題 + 副標），底部顯示模型名稱、耗時、Token 用量；改用單一 st.markdown 呼叫確保邊框確實包住所有內容。",
+            ]),
+            ("修正", [
+                "導覽列徹底重構：🌙 / ☁️ / 登出三按鈕從頁面主流區移至使用者頭像右側，改用單一 st.columns() 列搭配 CSS nth-child(2) sticky 實現，根除舊版 JS 注入（window.parent）在 iframe 沙箱限制下失效的問題。",
+                "深色模式元件覆蓋強化：Widget 標籤、Selectbox、Checkbox、Radio、Number Input、Caption、Expander 標題列、Alert 框、Tab 標籤等所有元件在深色模式下文字與背景正確顯示。",
+                "個股頁深色模式同步：K 線圖、MACD、KDJ、RSI 等 Plotly 圖表切換深色主題（paper_bgcolor / plot_bgcolor / font_color / gridcolor 全數更新）；技術分析面與估值分析面表格改為自訂 HTML 表格（data-tbl），跟隨 CSS 變數正確顯示深淺色。",
+                "行動裝置響應修正：移除舊固定導覽列的 padding-top: 72px 補位，手機版不再有多餘頂部空白；同步移除殘留的 .war-navbar / .nav-title 等廢棄 CSS 規則。",
+            ]),
+        ]),
         ("v1.31", "精品 UI/UX 全面改版", [
             ("新增", [
                 "無側邊欄設計：移除傳統 Sidebar，改為固定頂部導覽列（毛玻璃效果），頁面切換改用首頁卡片入口 + 子頁面返回按鈕，操作更直覺。",
