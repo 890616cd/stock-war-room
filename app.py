@@ -2071,6 +2071,101 @@ fmp_key_sb     = _get_key("FMP_KEY")
 
 
 # ────────────────────────────────────────────────────────
+#  Markdown → HTML 轉換（內嵌於 HTML div 內使用）
+# ────────────────────────────────────────────────────────
+def _inline_md(text):
+    """把行內 markdown 轉為 HTML（text 需先 html.escape）。"""
+    import re
+    text = re.sub(r'\*\*\*(.+?)\*\*\*', r'<strong><em>\1</em></strong>', text)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'\*([^*\n]+?)\*', r'<em>\1</em>', text)
+    text = re.sub(r'`([^`]+?)`',
+                  r'<code style="background:rgba(100,116,139,0.15);padding:1px 4px;'
+                  r'border-radius:3px;font-size:11px;">\1</code>', text)
+    return text
+
+def _md_to_html(text, txt_clr, muted_clr):
+    """
+    把 AI 輸出的 Markdown 轉為 HTML，供嵌入 HTML div 使用。
+    先 html.escape 防止 <、> 破壞外框結構，再逐行轉換 Markdown 元素。
+    """
+    import re, html as _h
+    lines = text.split('\n')
+    out = []
+    in_ul = False
+    in_ol = False
+
+    def _close_lists():
+        nonlocal in_ul, in_ol
+        if in_ul: out.append('</ul>'); in_ul = False
+        if in_ol: out.append('</ol>'); in_ol = False
+
+    for line in lines:
+        # 水平線
+        if re.match(r'^-{3,}\s*$', line):
+            _close_lists()
+            out.append('<hr style="border:none;border-top:1px solid rgba(100,116,139,0.25);margin:10px 0;">')
+            continue
+        # 標題 #/##/###
+        m = re.match(r'^(#{1,4})\s+(.+)$', line)
+        if m:
+            _close_lists()
+            lvl = len(m.group(1))
+            sz = {1:'17px', 2:'15px', 3:'14px', 4:'13px'}.get(lvl, '14px')
+            mt = {1:'18px', 2:'14px', 3:'10px', 4:'8px'}.get(lvl, '10px')
+            txt = _inline_md(_h.escape(m.group(2)))
+            out.append(f'<div style="font-size:{sz};font-weight:700;color:{txt_clr};margin:{mt} 0 5px;">{txt}</div>')
+            continue
+        # 引用塊 >
+        if line.startswith('>'):
+            _close_lists()
+            content = re.sub(r'^>\s?', '', line)
+            # 引用內的清單項目
+            lm = re.match(r'^[-*]\s+(.+)$', content)
+            if lm:
+                txt = _inline_md(_h.escape(lm.group(1)))
+                out.append(f'<div style="border-left:3px solid rgba(212,175,55,0.55);'
+                           f'padding:2px 10px;margin:1px 0;color:{muted_clr};font-size:12px;">• {txt}</div>')
+            else:
+                txt = _inline_md(_h.escape(content))
+                out.append(f'<div style="border-left:3px solid rgba(212,175,55,0.55);'
+                           f'padding:2px 10px;margin:1px 0;color:{muted_clr};font-size:12px;">{txt}</div>')
+            continue
+        # 無序清單
+        m = re.match(r'^[-*•]\s+(.+)$', line)
+        if m:
+            if in_ol: out.append('</ol>'); in_ol = False
+            if not in_ul:
+                out.append(f'<ul style="margin:5px 0;padding-left:1.4em;color:{txt_clr};">')
+                in_ul = True
+            txt = _inline_md(_h.escape(m.group(1)))
+            out.append(f'<li style="margin:2px 0;font-size:13px;">{txt}</li>')
+            continue
+        # 有序清單
+        m = re.match(r'^\d+\.\s+(.+)$', line)
+        if m:
+            if in_ul: out.append('</ul>'); in_ul = False
+            if not in_ol:
+                out.append(f'<ol style="margin:5px 0;padding-left:1.4em;color:{txt_clr};">')
+                in_ol = True
+            txt = _inline_md(_h.escape(m.group(1)))
+            out.append(f'<li style="margin:2px 0;font-size:13px;">{txt}</li>')
+            continue
+        # 空行
+        if not line.strip():
+            _close_lists()
+            out.append('<div style="height:5px;"></div>')
+            continue
+        # 一般段落
+        _close_lists()
+        txt = _inline_md(_h.escape(line))
+        out.append(f'<p style="margin:3px 0;font-size:13px;line-height:1.6;color:{txt_clr};">{txt}</p>')
+
+    _close_lists()
+    return '\n'.join(out)
+
+
+# ────────────────────────────────────────────────────────
 #  報告外框 HTML 產生器（單一 st.markdown 呼叫，邊框真實可見）
 # ────────────────────────────────────────────────────────
 def _mk_rpt_frame(icon: str, title: str, subtitle: str,
@@ -2078,7 +2173,7 @@ def _mk_rpt_frame(icon: str, title: str, subtitle: str,
     """
     把 header + 元資訊條 + 報告內容合成為一個 HTML 字串，
     由呼叫端用 st.markdown(..., unsafe_allow_html=True) 一次渲染。
-    這是讓邊框真正包住 Streamlit markdown 內容的唯一可靠方式。
+    report_text 先經 _md_to_html 轉換，避免 markdown 在 HTML div 內無法渲染的問題。
     """
     _is_d = st.session_state.get("_theme", "light") == "dark"
     # 外框樣式
@@ -2123,13 +2218,13 @@ def _mk_rpt_frame(icon: str, title: str, subtitle: str,
         f'</div>'
     )
 
-    # 整個外框：header + meta + 報告 markdown（兩個換行讓 Streamlit 正確解析 markdown 區塊）
+    _content_html = _md_to_html(report_text, _txt, _muted)
     return (
         f'<div style="border:2px solid {_bdr};border-radius:20px;padding:24px;'
         f'background:{_bg};box-shadow:{_shd};margin-bottom:8px;">'
         f'{hd_html}'
         f'{meta_html}'
-        f'\n\n{report_text}\n\n'
+        f'{_content_html}'
         f'</div>'
     )
 
@@ -3210,6 +3305,21 @@ elif page == "📝 版本更新紀錄":
     st.divider()
 
     _CHANGELOG = [
+        ("v1.33", "多供應商 AI 金鑰流程重設計 & Token 費用顯示", [
+            ("新增", [
+                "Token 費用計算：AI 報告元資訊條新增「💵 $X.XXXX USD」費用顯示，依據 Anthropic / OpenAI / Google 官方 2026 定價自動計算（輸入 + 輸出 Token 分開計費），費用旁標注「美金」。",
+                "三大廠商模型定價表：內建 PRICING_TABLE 涵蓋 Claude Opus/Sonnet/Haiku、GPT-4o/5 系列、Gemini 2.5/3 系列；無法匹配模型時以供應商預設均價估算。",
+                "Token 欄位合併：原拆分的輸入/輸出 Token 欄位合併為單一「🔢 N tokens」，滑鼠懸停顯示輸入/輸出明細 Tooltip。",
+            ]),
+            ("調整", [
+                "API 金鑰設定介面全面改版：從「智慧單欄自動識別」改為三步驟流程 ── Step 1 選供應商（Radio）→ Step 2 貼 Key（欄位與儲存鈕並排）→ Step 3 勾選模型（Checkbox），步驟標題以圓角邊框凸顯。",
+                "Gemini 金鑰識別修正：改用排除法辨識供應商（非 sk-ant- 且非 sk- 開頭一律視為 Google），不再依賴 AIza 前綴，正確支援所有 Gemini 金鑰格式。",
+                "驗證失敗提示優化：金鑰驗證例外時顯示「驗證失敗：錯誤的金鑰格式，請確認是否選取正確的供應商」，協助使用者判斷是否選錯廠商。",
+                "模型串流清理：儲存金鑰時過濾 selected_models，僅保留有對應有效金鑰的其他供應商模型，防止殘留的無效模型觸發「ANTHROPIC_API_KEY 未設定」錯誤。",
+                "移除「進階：手動逐一設定各供應商金鑰」展開區：Step 1/2/3 流程已涵蓋所有廠商設定，舊區塊不再需要。",
+                "頁面更名：「⚙️ 模型與投資偏好」更名為「⚙️ 投資風格偏好」，模型選取移至「教學 & API設定」統一管理，避免兩處設定互相衝突。",
+            ]),
+        ]),
         ("v1.32", "互動體驗全面升級", [
             ("新增", [
                 "全站按鈕互動特效：所有按鈕新增 hover 微浮起放大（scale 1.05 + translateY -2px + 陰影）與 active 實體壓下效果（scale 0.94 + translateY 1px + 內凹陰影），使用彈簧曲線 cubic-bezier(0.34,1.56,0.64,1) 讓回彈有質感；Expander、Tab、Selectbox 亦加入對應特效。",
