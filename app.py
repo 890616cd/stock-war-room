@@ -255,11 +255,12 @@ div[data-testid="stAlert"][role="alert"] {{
 .war-loading-dots::after {{ content:''; animation:war-dots 1.4s steps(4,end) infinite; }}
 
 /* ═══ 自訂資料表格 ═══ */
-.data-tbl {{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card); }}
-.data-tbl th {{ background:var(--card2); color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; padding:8px 12px; text-align:left; border-bottom:2px solid var(--border); }}
-.data-tbl td {{ padding:9px 12px; color:var(--text); background:var(--card); border-bottom:1px solid var(--border); font-family:'Courier New',monospace; }}
+[data-testid="stMarkdownContainer"] {{ background:transparent!important; }}
+.data-tbl {{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card)!important; }}
+.data-tbl th {{ background:var(--card2)!important; color:var(--muted)!important; font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; padding:8px 12px; text-align:left; border-bottom:2px solid var(--border); }}
+.data-tbl td {{ padding:9px 12px; color:var(--text)!important; background:var(--card)!important; border-bottom:1px solid var(--border); font-family:'Courier New',monospace; }}
 .data-tbl tr:last-child td {{ border-bottom:none; }}
-.data-tbl tr:hover td {{ background:var(--card2); transition:background .1s; }}
+.data-tbl tr:hover td {{ background:var(--card2)!important; transition:background .1s; }}
 .data-tbl .up {{ color:var(--up)!important; }} .data-tbl .dn {{ color:var(--down)!important; }} .data-tbl .mut {{ color:var(--muted)!important; }}
 
 /* ═══ DataFrame ═══ */
