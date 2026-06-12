@@ -45,12 +45,15 @@ MODEL_CATALOG: dict[str, dict] = {
     # 前代穩定版（2025）
     "gpt-4o":             {"provider": "openai",    "label": "GPT-4o",            "icon": "🟢", "env_key": "OPENAI_API_KEY",     "max_tokens": 2800},
     "gpt-4o-mini":        {"provider": "openai",    "label": "GPT-4o Mini",       "icon": "🟩", "env_key": "OPENAI_API_KEY",     "max_tokens": 2800},
-    "o3":                 {"provider": "openai",    "label": "o3（推理增強）",     "icon": "🔷", "env_key": "OPENAI_API_KEY",     "max_tokens": 2800},
+    # o3 是推理模型：max_completion_tokens 包含推理 token + 輸出 token，需足夠大
+    "o3":                 {"provider": "openai",    "label": "o3（推理增強）",     "icon": "🔷", "env_key": "OPENAI_API_KEY",     "max_tokens": 8192},
     # ══ Google Gemini ═════════════════════════════════════════════
     # 最新世代（2026）
-    "gemini-3.1-pro-preview":  {"provider": "google", "label": "Gemini 3.1 Pro",      "icon": "🔴", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
-    "gemini-3-flash-preview":  {"provider": "google", "label": "Gemini 3 Flash",       "icon": "🔶", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
-    "gemini-3.1-flash-lite":   {"provider": "google", "label": "Gemini 3.1 Flash Lite","icon": "🟡", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
+    # Gemini 3.x 為思考型模型（Gemini 2.5 後繼），max_output_tokens 包含推理 token，
+    # 設 8192 確保推理結束後仍有足夠空間輸出完整報告
+    "gemini-3.1-pro-preview":  {"provider": "google", "label": "Gemini 3.1 Pro",      "icon": "🔴", "env_key": "GOOGLE_API_KEY", "max_tokens": 8192},
+    "gemini-3-flash-preview":  {"provider": "google", "label": "Gemini 3 Flash",       "icon": "🔶", "env_key": "GOOGLE_API_KEY", "max_tokens": 8192},
+    "gemini-3.1-flash-lite":   {"provider": "google", "label": "Gemini 3.1 Flash Lite","icon": "🟡", "env_key": "GOOGLE_API_KEY", "max_tokens": 8192},
     # 前代穩定版（2025）
     # max_tokens 設 8192：Gemini 2.5 思考型模型的 candidates_token_count 包含
     # 內部思考 token，思考通常耗用 2000–5000 token，需預留足夠空間給輸出文字
@@ -581,14 +584,21 @@ def _call_openai(model_id: str, system_prompt: str, user_prompt: str, max_tokens
     except ImportError:
         raise ImportError("請安裝 openai 套件：pip install openai")
     client = OpenAI(api_key=api_key)
-    resp = client.chat.completions.create(
-        model      = model_id,
-        max_tokens = max_tokens,
-        messages   = [
+    # o1/o3/o4 是推理模型：必須用 max_completion_tokens（推理+輸出共用額度），
+    # 不可傳 temperature；標準模型用舊版 max_tokens 即可
+    _is_reasoning = any(model_id.startswith(p) for p in ("o1", "o3", "o4"))
+    _params: dict = {
+        "model":    model_id,
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_prompt},
         ],
-    )
+    }
+    if _is_reasoning:
+        _params["max_completion_tokens"] = max_tokens
+    else:
+        _params["max_tokens"] = max_tokens
+    resp = client.chat.completions.create(**_params)
     u = resp.usage
     return {
         "text":          resp.choices[0].message.content,
