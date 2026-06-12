@@ -2793,15 +2793,20 @@ elif page == "📚 教學 & API設定":
             # 若該供應商已有金鑰，顯示「已設定」提示，不強迫重填
             _existing_key = _get_key(_senv)
             if _existing_key:
-                st.caption(f"✅ 已設定金鑰 `...{_existing_key[-6:]}`　｜　如需**更換金鑰**再填入新的，**只換模型無需填此欄**")
-            smart_key_input = st.text_input(
-                "貼上 API Key",
-                value="",
-                type="password",
-                placeholder="貼上 API Key（格式不限）" if not _existing_key else "如需更換金鑰才填，否則留空直接選模型",
-                key="smart_api_key_input",
-                label_visibility="collapsed",
-            )
+                st.caption(f"✅ 已設定金鑰 `...{_existing_key[-6:]}`　｜　如需更換金鑰再填入新的，只換模型留空即可")
+            _col_key_inp, _col_key_btn = st.columns([5, 2])
+            with _col_key_inp:
+                smart_key_input = st.text_input(
+                    "貼上 API Key",
+                    value="",
+                    type="password",
+                    placeholder="貼上 API Key（格式不限）" if not _existing_key else "如需更換金鑰才填，換模型留空",
+                    key="smart_api_key_input",
+                    label_visibility="collapsed",
+                )
+            with _col_key_btn:
+                _save_key_clicked = st.button("💾 驗證並儲存金鑰", type="primary",
+                                              key="save_smart_key", use_container_width=True)
 
             # Step 3：選模型
             _SMART_MODEL_LIST = {
@@ -2852,8 +2857,15 @@ elif page == "📚 教學 & API設定":
                 '</div>',
                 unsafe_allow_html=True,
             )
+            from module3_llm_summarizer import MODEL_CATALOG as _MC3, detect_provider_from_model_id as _dpmi3
+            _penv_map3 = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
             _cur_sel_smart = list(st.session_state.get("selected_models", []))
-            _new_sel_smart = list(_cur_sel_smart)
+            # 只保留「其他 provider 且已有 key」的模型；當前 provider 的模型由 checkbox 完全控制
+            _new_sel_smart = [
+                m for m in _cur_sel_smart
+                if (_MC3.get(m, {}).get("provider") or _dpmi3(m)) != _sprov
+                and _get_key(_penv_map3.get((_MC3.get(m, {}).get("provider") or _dpmi3(m)), ""))
+            ]
             _sm_data = _SMART_MODEL_LIST.get(_sprov, {})
             _sc1, _sc2 = st.columns(2)
             with _sc1:
@@ -2880,41 +2892,30 @@ elif page == "📚 教學 & API設定":
                             _new_sel_smart.remove(_smid)
             st.session_state["selected_models"] = _new_sel_smart if _new_sel_smart else _cur_sel_smart
 
-            # 即時顯示目前已選模型（含所有 provider）
+            # 即時顯示目前已選模型
             _all_sel = st.session_state["selected_models"]
-            from module3_llm_summarizer import MODEL_CATALOG as _MC_disp
-            _sel_labels = [_MC_disp.get(m, {}).get("label", m) for m in _all_sel]
+            _sel_labels = [_MC3.get(m, {}).get("label", m) for m in _all_sel]
             if _sel_labels:
-                st.success(f"✅ 目前已選模型（勾選即時生效）：{' ／ '.join(_sel_labels)}")
+                st.success(f"✅ 目前已選模型：{' ／ '.join(_sel_labels)}")
             else:
                 st.warning("⚠️ 尚未選取任何模型，分析將無法產生報告")
 
-            # 儲存按鈕
-            _col_save_ai, _ = st.columns([2, 8])
-            if _col_save_ai.button("💾 驗證並儲存 AI 金鑰", type="primary", key="save_smart_key"):
+            st.caption("💡 輸入完 API 金鑰後，後續更改同廠商模型直接勾選更換（勾選完即更換），無須重新輸入 API 金鑰")
+
+            # 儲存金鑰邏輯（按鈕已移至 Step 2 欄位右側）
+            if _save_key_clicked:
                 _k = smart_key_input.strip()
                 if _k:
                     with st.spinner(f"驗證 {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰中…"):
                         _ok, _vmsg = _validate_api_key(_senv, _k)
                     if _ok:
                         _save_api_key(_senv, _k)
-                        # 移除 selected_models 中無對應 key 的其他 provider 模型
-                        from module3_llm_summarizer import MODEL_CATALOG as _MC2, detect_provider_from_model_id as _dpmi
-                        _penv_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
-                        _cur_mods = list(st.session_state.get("selected_models", []))
-                        _clean_mods = []
-                        for _m in _cur_mods:
-                            _mp   = _MC2.get(_m, {}).get("provider") or _dpmi(_m)
-                            _menv = _penv_map.get(_mp, "")
-                            if _mp == _sprov or (_menv and _get_key(_menv)):
-                                _clean_mods.append(_m)
-                        st.session_state["selected_models"] = _clean_mods
                         st.success(_vmsg + "　金鑰已儲存並生效！")
                         st.rerun()
                     else:
                         st.error(_vmsg)
                 else:
-                    st.warning("請先輸入 API Key")
+                    st.warning("請先在 Step 2 輸入 API Key")
 
             # ── 已設定的 AI 金鑰刪除區 ────────────────────────
             _has_any_ai = any(_get_key(i["env"]) for i in _AI_PROVIDER_INFO.values())
