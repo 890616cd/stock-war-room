@@ -1332,10 +1332,23 @@ def run_full_analysis(prog=None):
             sel_models = st.session_state.get("selected_models", [])
             sys_p  = build_system_prompt(assessment, market_data, custom_p)
             user_p = build_user_prompt(market_data)
+            from module3_llm_summarizer import _get_api_key as _gak, detect_provider_from_model_id
+            _PROV_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
             multi: dict = {}
             for i, mid in enumerate(sel_models):
                 lbl = MODEL_CATALOG.get(mid, {}).get("label", mid)
                 pct = 72 + int(i / max(len(sel_models), 1) * 23)
+                # 先確認該 provider 的 key 存在，否則跳過
+                _prov = MODEL_CATALOG.get(mid, {}).get("provider") or detect_provider_from_model_id(mid)
+                _penv = _PROV_ENV.get(_prov, "")
+                if _penv and not _gak(_penv):
+                    multi[mid] = {
+                        "text": "", "input_tokens": 0, "output_tokens": 0,
+                        "elapsed_sec": 0, "provider": _prov,
+                        "model_id": mid, "label": lbl, "icon": "🤖",
+                        "error": f"{_penv} 未設定，請至「教學 & API設定」新增金鑰",
+                    }
+                    continue
                 _upd(pct, f"🤖 {lbl} 生成市場情緒分析...")
                 res = call_model(mid, sys_p, user_p)
                 if not res.get("error"):
@@ -2002,10 +2015,22 @@ def render_stock_detail(symbol: str, name: str):
                 "所有判斷必須基於提供的數據，不得憑空捏造任何數字。"
                 "使用者已在分析請求中指定輸出格式，請嚴格遵守，逐項完整輸出。"
             )
+            from module3_llm_summarizer import _get_api_key as _gak2, detect_provider_from_model_id as _dpmi2
+            _PENV2 = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
             multi_res: dict = {}
             for i, mid in enumerate(sel):
                 lbl = MODEL_CATALOG.get(mid, {}).get("label", mid)
                 pct = 55 + int(i / max(len(sel), 1) * 40)
+                _prov2 = MODEL_CATALOG.get(mid, {}).get("provider") or _dpmi2(mid)
+                _penv2 = _PENV2.get(_prov2, "")
+                if _penv2 and not _gak2(_penv2):
+                    multi_res[mid] = {
+                        "text": "", "input_tokens": 0, "output_tokens": 0,
+                        "elapsed_sec": 0, "provider": _prov2,
+                        "model_id": mid, "label": lbl, "icon": "🤖",
+                        "error": f"{_penv2} 未設定，請至「教學 & API設定」新增金鑰",
+                    }
+                    continue
                 _sprog.progress(pct, text=f"🤖 {lbl} 正在分析 {stock.symbol}...")
                 res = call_model(mid, sys_p_stock, user_prompt)
                 multi_res[mid] = res
@@ -3010,6 +3035,18 @@ elif page == "📚 教學 & API設定":
                             _ok, _vmsg = _validate_api_key(_senv, _k)
                         if _ok:
                             _save_api_key(_senv, _k)
+                            # 移除 selected_models 中無對應 key 的其他 provider 模型，避免分析時報錯
+                            from module3_llm_summarizer import MODEL_CATALOG as _MC2, detect_provider_from_model_id as _dpmi
+                            _penv_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
+                            _cur_mods = list(st.session_state.get("selected_models", []))
+                            _clean_mods = []
+                            for _m in _cur_mods:
+                                _mp = _MC2.get(_m, {}).get("provider") or _dpmi(_m)
+                                _menv = _penv_map.get(_mp, "")
+                                # 剛儲存的 provider 直接保留；其他 provider 需已有 key
+                                if _mp == _sprov or (_menv and _get_key(_menv)):
+                                    _clean_mods.append(_m)
+                            st.session_state["selected_models"] = _clean_mods
                             st.success(_vmsg + "　金鑰已儲存並生效！")
                             st.rerun()
                         else:
