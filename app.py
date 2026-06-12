@@ -2909,16 +2909,13 @@ elif page == "📚 教學 & API設定":
 
         if _pin_show_keys:
 
-            from module3_llm_summarizer import detect_provider_from_key
-
-            # ── AI 模型金鑰（智慧單欄輸入）────────────────────
+            # ── AI 模型金鑰（先選廠商再貼 key，不依賴格式偵測）────
             st.markdown("### 🤖 AI 模型金鑰")
-            st.caption("貼上任一家 AI 模型的 API Key，系統自動識別供應商並儲存到對應欄位。")
 
             _AI_PROVIDER_INFO = {
                 "anthropic": {"label": "🟠 Anthropic（Claude）",  "env": "ANTHROPIC_API_KEY", "note": "⭐ 推薦 — 報告品質最佳"},
-                "openai":    {"label": "🟢 OpenAI（GPT-4o）",     "env": "OPENAI_API_KEY",    "note": "可與 Claude 交叉驗證"},
-                "google":    {"label": "🔴 Google（Gemini）",      "env": "GOOGLE_API_KEY",    "note": "Gemini 2.0 Flash 有免費方案"},
+                "openai":    {"label": "🟢 OpenAI（GPT）",         "env": "OPENAI_API_KEY",    "note": "可與 Claude 交叉驗證"},
+                "google":    {"label": "🔴 Google（Gemini）",      "env": "GOOGLE_API_KEY",    "note": "Gemini 有免費方案"},
             }
 
             # 目前已設定狀態
@@ -2932,15 +2929,27 @@ elif page == "📚 教學 & API設定":
             else:
                 st.warning("⚠️ 尚未設定任何 AI 模型金鑰。")
 
+            # Step 1：選廠商（radio）
+            _prov_labels = {pid: info["label"] for pid, info in _AI_PROVIDER_INFO.items()}
+            _prov_sel_label = st.radio(
+                "Step 1　選擇供應商",
+                options=list(_prov_labels.values()),
+                horizontal=True,
+                key="ai_prov_radio",
+            )
+            _sprov = next(pid for pid, lbl in _prov_labels.items() if lbl == _prov_sel_label)
+            _senv  = _AI_PROVIDER_INFO[_sprov]["env"]
+
+            # Step 2：貼 key
             smart_key_input = st.text_input(
-                "貼上 AI API Key（自動識別供應商）",
+                f"Step 2　貼上 {_AI_PROVIDER_INFO[_sprov]['label']} 的 API Key",
                 value="",
                 type="password",
-                placeholder="sk-ant-...（Claude）  /  sk-proj-...（OpenAI）  /  任意格式（Gemini）",
+                placeholder="貼上 API Key（格式不限）",
                 key="smart_api_key_input",
             )
 
-            # 即時偵測提示 + 模型選擇器
+            # Step 3：選模型
             _SMART_MODEL_LIST = {
                 "anthropic": {
                     "latest": [
@@ -2968,91 +2977,71 @@ elif page == "📚 教學 & API設定":
                 },
                 "google": {
                     "latest": [
-                        ("gemini-3.1-pro-preview", "🔴 Gemini 3.1 Pro",       "旗艦（付費）"),
-                        ("gemini-3-flash-preview",  "🔶 Gemini 3 Flash ⭐",   "推薦，免費方案可用"),
+                        ("gemini-3.1-pro-preview", "🔴 Gemini 3.1 Pro",        "旗艦（付費）"),
+                        ("gemini-3-flash-preview",  "🔶 Gemini 3 Flash ⭐",    "推薦，免費方案可用"),
                         ("gemini-3.1-flash-lite",   "🟡 Gemini 3.1 Flash Lite","最省費用，免費方案可用"),
                     ],
                     "stable": [
-                        ("gemini-2.5-pro",        "🔴 Gemini 2.5 Pro",        "前代旗艦（付費）"),
-                        ("gemini-2.5-flash",      "🔶 Gemini 2.5 Flash",      "前代均衡，免費方案可用"),
-                        ("gemini-2.5-flash-lite", "🟡 Gemini 2.5 Flash Lite", "前代輕量，免費方案可用"),
+                        ("gemini-2.5-pro",        "🔴 Gemini 2.5 Pro",         "前代旗艦（付費）"),
+                        ("gemini-2.5-flash",      "🔶 Gemini 2.5 Flash",       "前代均衡，免費方案可用"),
+                        ("gemini-2.5-flash-lite", "🟡 Gemini 2.5 Flash Lite",  "前代輕量，免費方案可用"),
                     ],
                 },
             }
 
-            if smart_key_input.strip():
-                _sprov, _senv = detect_provider_from_key(smart_key_input.strip())
-                if _sprov:
-                    _sinfo = _AI_PROVIDER_INFO[_sprov]
-                    st.success(f"✅ 偵測到：{_sinfo['label']}　　{_sinfo['note']}")
+            st.markdown(f"**Step 3　選擇要使用的模型（{_AI_PROVIDER_INFO[_sprov]['label']}）**")
+            _cur_sel_smart = list(st.session_state.get("selected_models", []))
+            _new_sel_smart = list(_cur_sel_smart)
+            _sm_data = _SMART_MODEL_LIST.get(_sprov, {})
+            _sc1, _sc2 = st.columns(2)
+            with _sc1:
+                st.caption("🆕 最新版")
+                for _smid, _slabel, _snote in _sm_data.get("latest", []):
+                    _sch = st.checkbox(_slabel, value=_smid in _cur_sel_smart,
+                                       key=f"smart_chk_{_smid}", help=_snote)
+                    if _sch:
+                        if _smid not in _new_sel_smart:
+                            _new_sel_smart.append(_smid)
+                    else:
+                        if _smid in _new_sel_smart:
+                            _new_sel_smart.remove(_smid)
+            with _sc2:
+                st.caption("🔒 前代穩定版")
+                for _smid, _slabel, _snote in _sm_data.get("stable", []):
+                    _sch = st.checkbox(_slabel, value=_smid in _cur_sel_smart,
+                                       key=f"smart_chk_{_smid}", help=_snote)
+                    if _sch:
+                        if _smid not in _new_sel_smart:
+                            _new_sel_smart.append(_smid)
+                    else:
+                        if _smid in _new_sel_smart:
+                            _new_sel_smart.remove(_smid)
+            st.session_state["selected_models"] = _new_sel_smart if _new_sel_smart else _cur_sel_smart
 
-                    # 偵測到供應商後，直接顯示該供應商的模型選擇
-                    st.markdown(f"**選擇要使用的模型（{_sinfo['label']}）**")
-                    _cur_sel_smart = list(st.session_state.get("selected_models", []))
-                    _new_sel_smart = [m for m in _cur_sel_smart]  # copy
-
-                    _sm_data = _SMART_MODEL_LIST.get(_sprov, {})
-                    _sc1, _sc2 = st.columns(2)
-                    with _sc1:
-                        st.caption("🆕 最新版")
-                        for _smid, _slabel, _snote in _sm_data.get("latest", []):
-                            _sch = st.checkbox(
-                                _slabel, value=_smid in _cur_sel_smart,
-                                key=f"smart_chk_{_smid}", help=_snote,
-                            )
-                            if _sch:
-                                if _smid not in _new_sel_smart:
-                                    _new_sel_smart.append(_smid)
-                            else:
-                                if _smid in _new_sel_smart:
-                                    _new_sel_smart.remove(_smid)
-                    with _sc2:
-                        st.caption("🔒 前代穩定版")
-                        for _smid, _slabel, _snote in _sm_data.get("stable", []):
-                            _sch = st.checkbox(
-                                _slabel, value=_smid in _cur_sel_smart,
-                                key=f"smart_chk_{_smid}", help=_snote,
-                            )
-                            if _sch:
-                                if _smid not in _new_sel_smart:
-                                    _new_sel_smart.append(_smid)
-                            else:
-                                if _smid in _new_sel_smart:
-                                    _new_sel_smart.remove(_smid)
-
-                    st.session_state["selected_models"] = _new_sel_smart if _new_sel_smart else _cur_sel_smart
-
-                else:
-                    st.warning("⚠️ 無法識別供應商，請確認 Key 格式（Claude：`sk-ant-`、OpenAI：`sk-` 或 `sk-proj-`、Google Gemini：任意格式均支援）")
-
+            # 儲存按鈕
             _col_save_ai, _ = st.columns([2, 8])
             if _col_save_ai.button("💾 驗證並儲存 AI 金鑰", type="primary", key="save_smart_key"):
                 _k = smart_key_input.strip()
                 if _k:
-                    _sprov, _senv = detect_provider_from_key(_k)
-                    if _sprov:
-                        with st.spinner(f"驗證 {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰中…"):
-                            _ok, _vmsg = _validate_api_key(_senv, _k)
-                        if _ok:
-                            _save_api_key(_senv, _k)
-                            # 移除 selected_models 中無對應 key 的其他 provider 模型，避免分析時報錯
-                            from module3_llm_summarizer import MODEL_CATALOG as _MC2, detect_provider_from_model_id as _dpmi
-                            _penv_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
-                            _cur_mods = list(st.session_state.get("selected_models", []))
-                            _clean_mods = []
-                            for _m in _cur_mods:
-                                _mp = _MC2.get(_m, {}).get("provider") or _dpmi(_m)
-                                _menv = _penv_map.get(_mp, "")
-                                # 剛儲存的 provider 直接保留；其他 provider 需已有 key
-                                if _mp == _sprov or (_menv and _get_key(_menv)):
-                                    _clean_mods.append(_m)
-                            st.session_state["selected_models"] = _clean_mods
-                            st.success(_vmsg + "　金鑰已儲存並生效！")
-                            st.rerun()
-                        else:
-                            st.error(_vmsg)
+                    with st.spinner(f"驗證 {_AI_PROVIDER_INFO[_sprov]['label']} 金鑰中…"):
+                        _ok, _vmsg = _validate_api_key(_senv, _k)
+                    if _ok:
+                        _save_api_key(_senv, _k)
+                        # 移除 selected_models 中無對應 key 的其他 provider 模型
+                        from module3_llm_summarizer import MODEL_CATALOG as _MC2, detect_provider_from_model_id as _dpmi
+                        _penv_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
+                        _cur_mods = list(st.session_state.get("selected_models", []))
+                        _clean_mods = []
+                        for _m in _cur_mods:
+                            _mp   = _MC2.get(_m, {}).get("provider") or _dpmi(_m)
+                            _menv = _penv_map.get(_mp, "")
+                            if _mp == _sprov or (_menv and _get_key(_menv)):
+                                _clean_mods.append(_m)
+                        st.session_state["selected_models"] = _clean_mods
+                        st.success(_vmsg + "　金鑰已儲存並生效！")
+                        st.rerun()
                     else:
-                        st.error("❌ 無法識別供應商，請確認 Key 格式正確")
+                        st.error(_vmsg)
                 else:
                     st.warning("請先輸入 API Key")
 
