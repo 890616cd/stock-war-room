@@ -58,22 +58,100 @@ MODEL_CATALOG: dict[str, dict] = {
 }
 
 # ══════════════════════════════════════════════
+#  Token 定價表（每百萬 tokens，美元）
+#  資料來源：各廠商官方 API 定價頁（2026-06）
+#  - Anthropic: platform.claude.com/docs/about-claude/pricing
+#  - OpenAI:    openai.com/api/pricing
+#  - Google:    ai.google.dev/gemini-api/docs/pricing
+# ══════════════════════════════════════════════
+
+# (input_per_M_USD, output_per_M_USD)
+PRICING_TABLE = {
+    # ── Anthropic Claude ──────────────────────────────────
+    "claude-opus-4-8":    (5.00,  25.00),
+    "claude-opus-4-7":    (5.00,  25.00),
+    "claude-opus-4-5":    (5.00,  25.00),
+    "claude-sonnet-4-6":  (3.00,  15.00),
+    "claude-sonnet-4-5":  (3.00,  15.00),
+    "claude-haiku-4-5":   (1.00,   5.00),
+    "claude-haiku-3-5":   (0.80,   4.00),
+    # ── OpenAI ────────────────────────────────────────────
+    "gpt-4o":             (2.50,  10.00),
+    "gpt-4o-mini":        (0.15,   0.60),
+    "o3":                 (10.00, 40.00),
+    "o4-mini":            (1.10,   4.40),
+    # 未來/預覽版模型：以現行最接近 tier 估算
+    "gpt-5.5":            (5.00,  15.00),
+    "gpt-5.4":            (5.00,  15.00),
+    "gpt-5.4-mini":       (0.40,   1.60),
+    # ── Google Gemini ─────────────────────────────────────
+    "gemini-2.5-pro":           (1.25, 10.00),
+    "gemini-2.5-flash":         (0.30,  2.50),
+    "gemini-2.5-flash-lite":    (0.075, 0.30),
+    # 未來/預覽版模型：以現行最接近 tier 估算
+    "gemini-3.1-pro-preview":   (1.25, 10.00),
+    "gemini-3-flash-preview":   (0.30,  2.50),
+    "gemini-3.1-flash-lite":    (0.075, 0.30),
+}
+
+# provider 層級預設定價（model_id 不在表中時的 fallback）
+_PROVIDER_DEFAULT_PRICING = {
+    "anthropic": (3.00, 15.00),   # Sonnet 級
+    "openai":    (2.50, 10.00),   # GPT-4o 級
+    "google":    (0.30,  2.50),   # Flash 級
+}
+
+
+def calc_cost(model_id, input_tokens, output_tokens):
+    """
+    計算單次 API 呼叫費用（美元）。
+    優先查 PRICING_TABLE 精確定價；找不到時依 provider 使用預設定價。
+    無法判斷 provider 時回傳 None。
+    """
+    pricing = PRICING_TABLE.get(model_id)
+    if pricing is None:
+        prov = detect_provider_from_model_id(model_id)
+        pricing = _PROVIDER_DEFAULT_PRICING.get(prov)
+    if pricing is None:
+        return None
+    in_price, out_price = pricing
+    return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
+
+
+def fmt_cost(model_id, input_tokens, output_tokens):
+    """回傳格式化費用字串，例如 '$0.0523' 或 '< $0.0001' 或 'N/A'"""
+    cost = calc_cost(model_id, input_tokens, output_tokens)
+    if cost is None:
+        return "N/A"
+    if cost == 0:
+        return "$0.0000"
+    if cost < 0.0001:
+        return "< $0.0001"
+    return f"${cost:.4f}"
+
+
+# ══════════════════════════════════════════════
 #  動態 Provider 偵測
 # ══════════════════════════════════════════════
 
 def detect_provider_from_key(key: str) -> tuple:
     """
     從 API Key 前綴自動偵測供應商。
+    Anthropic：固定以 sk-ant- 開頭。
+    OpenAI：固定以 sk- 開頭（含 sk-proj-）。
+    Google：無固定前綴（AIza 是舊格式，新格式不一定）；排除前兩者後預設為 Google。
     返回 (provider, env_var) 或 (None, None)。
     """
     k = key.strip()
+    if not k:
+        return None, None
     if k.startswith("sk-ant-"):
         return "anthropic", "ANTHROPIC_API_KEY"
-    if k.startswith("sk-proj-") or (k.startswith("sk-") and not k.startswith("sk-ant-")):
+    if k.startswith("sk-"):
         return "openai", "OPENAI_API_KEY"
-    if k.startswith("AIza"):
-        return "google", "GOOGLE_API_KEY"
-    return None, None
+    # Google API key 格式多樣（AIza... 為舊格式；新格式無固定前綴）
+    # 排除 Anthropic / OpenAI 後，其餘均視為 Google
+    return "google", "GOOGLE_API_KEY"
 
 
 def detect_provider_from_model_id(model_id: str) -> str:
