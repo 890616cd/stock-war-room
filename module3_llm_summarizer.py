@@ -52,17 +52,16 @@ MODEL_CATALOG: dict[str, dict] = {
     "gemini-3-flash-preview":  {"provider": "google", "label": "Gemini 3 Flash",       "icon": "🔶", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
     "gemini-3.1-flash-lite":   {"provider": "google", "label": "Gemini 3.1 Flash Lite","icon": "🟡", "env_key": "GOOGLE_API_KEY", "max_tokens": 4096},
     # 前代穩定版（2025）
-    "gemini-2.5-pro":          {"provider": "google", "label": "Gemini 2.5 Pro",       "icon": "🔴", "env_key": "GOOGLE_API_KEY", "max_tokens": 2800},
-    "gemini-2.5-flash":        {"provider": "google", "label": "Gemini 2.5 Flash",     "icon": "🔶", "env_key": "GOOGLE_API_KEY", "max_tokens": 2800},
-    "gemini-2.5-flash-lite":   {"provider": "google", "label": "Gemini 2.5 Flash Lite","icon": "🟡", "env_key": "GOOGLE_API_KEY", "max_tokens": 2800},
+    # max_tokens 設 8192：Gemini 2.5 思考型模型的 candidates_token_count 包含
+    # 內部思考 token，思考通常耗用 2000–5000 token，需預留足夠空間給輸出文字
+    "gemini-2.5-pro":          {"provider": "google", "label": "Gemini 2.5 Pro",       "icon": "🔴", "env_key": "GOOGLE_API_KEY", "max_tokens": 8192},
+    "gemini-2.5-flash":        {"provider": "google", "label": "Gemini 2.5 Flash",     "icon": "🔶", "env_key": "GOOGLE_API_KEY", "max_tokens": 8192},
+    "gemini-2.5-flash-lite":   {"provider": "google", "label": "Gemini 2.5 Flash Lite","icon": "🟡", "env_key": "GOOGLE_API_KEY", "max_tokens": 8192},
 }
 
 # ══════════════════════════════════════════════
 #  Token 定價表（每百萬 tokens，美元）
 #  資料來源：各廠商官方 API 定價頁（2026-06）
-#  - Anthropic: platform.claude.com/docs/about-claude/pricing
-#  - OpenAI:    openai.com/api/pricing
-#  - Google:    ai.google.dev/gemini-api/docs/pricing
 # ══════════════════════════════════════════════
 
 # (input_per_M_USD, output_per_M_USD)
@@ -80,7 +79,6 @@ PRICING_TABLE = {
     "gpt-4o-mini":        (0.15,   0.60),
     "o3":                 (10.00, 40.00),
     "o4-mini":            (1.10,   4.40),
-    # 未來/預覽版模型：以現行最接近 tier 估算
     "gpt-5.5":            (5.00,  15.00),
     "gpt-5.4":            (5.00,  15.00),
     "gpt-5.4-mini":       (0.40,   1.60),
@@ -88,26 +86,19 @@ PRICING_TABLE = {
     "gemini-2.5-pro":           (1.25, 10.00),
     "gemini-2.5-flash":         (0.30,  2.50),
     "gemini-2.5-flash-lite":    (0.075, 0.30),
-    # 未來/預覽版模型：以現行最接近 tier 估算
     "gemini-3.1-pro-preview":   (1.25, 10.00),
     "gemini-3-flash-preview":   (0.30,  2.50),
     "gemini-3.1-flash-lite":    (0.075, 0.30),
 }
 
-# provider 層級預設定價（model_id 不在表中時的 fallback）
 _PROVIDER_DEFAULT_PRICING = {
-    "anthropic": (3.00, 15.00),   # Sonnet 級
-    "openai":    (2.50, 10.00),   # GPT-4o 級
-    "google":    (0.30,  2.50),   # Flash 級
+    "anthropic": (3.00, 15.00),
+    "openai":    (2.50, 10.00),
+    "google":    (0.30,  2.50),
 }
 
 
 def calc_cost(model_id, input_tokens, output_tokens):
-    """
-    計算單次 API 呼叫費用（美元）。
-    優先查 PRICING_TABLE 精確定價；找不到時依 provider 使用預設定價。
-    無法判斷 provider 時回傳 None。
-    """
     pricing = PRICING_TABLE.get(model_id)
     if pricing is None:
         prov = detect_provider_from_model_id(model_id)
@@ -119,7 +110,6 @@ def calc_cost(model_id, input_tokens, output_tokens):
 
 
 def fmt_cost(model_id, input_tokens, output_tokens):
-    """回傳格式化費用字串，例如 '$0.0523' 或 '< $0.0001' 或 'N/A'"""
     cost = calc_cost(model_id, input_tokens, output_tokens)
     if cost is None:
         return "N/A"
@@ -139,7 +129,7 @@ def detect_provider_from_key(key: str) -> tuple:
     從 API Key 前綴自動偵測供應商。
     Anthropic：固定以 sk-ant- 開頭。
     OpenAI：固定以 sk- 開頭（含 sk-proj-）。
-    Google：無固定前綴（AIza 是舊格式，新格式不一定）；排除前兩者後預設為 Google。
+    Google：無固定前綴；排除前兩者後預設為 Google。
     返回 (provider, env_var) 或 (None, None)。
     """
     k = key.strip()
@@ -149,8 +139,6 @@ def detect_provider_from_key(key: str) -> tuple:
         return "anthropic", "ANTHROPIC_API_KEY"
     if k.startswith("sk-"):
         return "openai", "OPENAI_API_KEY"
-    # Google API key 格式多樣（AIza... 為舊格式；新格式無固定前綴）
-    # 排除 Anthropic / OpenAI 後，其餘均視為 Google
     return "google", "GOOGLE_API_KEY"
 
 
@@ -609,7 +597,7 @@ def _call_openai(model_id: str, system_prompt: str, user_prompt: str, max_tokens
     }
 
 
-def _call_gemini(model_id: str, system_prompt: str, user_prompt: str, max_tokens: int = 2800) -> dict:
+def _call_gemini(model_id: str, system_prompt: str, user_prompt: str, max_tokens: int = 8192) -> dict:
     api_key = _get_api_key("GOOGLE_API_KEY")
     if not api_key:
         raise EnvironmentError("GOOGLE_API_KEY 未設定")
@@ -618,8 +606,17 @@ def _call_gemini(model_id: str, system_prompt: str, user_prompt: str, max_tokens
     except ImportError:
         raise ImportError("請安裝 google-generativeai 套件：pip install google-generativeai")
     genai.configure(api_key=api_key)
-    m    = genai.GenerativeModel(model_name=model_id, system_instruction=system_prompt)
-    resp = m.generate_content(user_prompt, generation_config={"max_output_tokens": max_tokens})
+    m = genai.GenerativeModel(model_name=model_id, system_instruction=system_prompt)
+    # Gemini 2.5 思考型模型：嘗試停用思考（節省 token 給輸出文字）
+    # 若 SDK 版本不支援 thinking_config 則回退到純 max_output_tokens 設定
+    gen_cfg = {"max_output_tokens": max_tokens}
+    try:
+        resp = m.generate_content(
+            user_prompt,
+            generation_config={**gen_cfg, "thinking_config": {"thinking_budget": 0}},
+        )
+    except Exception:
+        resp = m.generate_content(user_prompt, generation_config=gen_cfg)
     try:
         it = resp.usage_metadata.prompt_token_count
         ot = resp.usage_metadata.candidates_token_count
