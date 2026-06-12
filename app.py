@@ -1088,6 +1088,26 @@ FMP、Finnhub、Marketaux 為選填擴充，提供更完整的估值與新聞資
         st.rerun()
 
 
+@st.dialog("🔒 API 金鑰已鎖定")
+def _show_pin_reminder():
+    st.markdown("""
+你的 **AI 模型 API 金鑰**已安全儲存，並由 **PIN 碼保護**。
+
+每次重新登入後需解鎖一次，金鑰即自動載入，分析功能即可啟用。
+
+> 💡 前往「📚 教學 & API設定」→「🔐 PIN 碼管理」區，輸入 PIN 碼完成解鎖。
+    """)
+    st.divider()
+    c1, c2 = st.columns(2)
+    if c1.button("🔓 前往解鎖", type="primary", use_container_width=True):
+        st.session_state["setup_done"]  = True
+        st.session_state["_go_to_page"] = "📚 教學 & API設定"
+        st.rerun()
+    if c2.button("稍後再說", use_container_width=True):
+        st.session_state["setup_done"] = True
+        st.rerun()
+
+
 # ════════════════════════════════════════════════════════
 #  Watchlist 工具（直接讀寫 JSON，不依賴 CLI）
 # ════════════════════════════════════════════════════════
@@ -2040,11 +2060,16 @@ def render_stock_detail(symbol: str, name: str):
             st.rerun()
 
 
-# ── 首次訪問：無任何 AI 模型 Key 時彈出設定導引（每個 Session 只顯示一次）──
+# ── 首次訪問：依金鑰狀態決定彈出哪個導引（每個 Session 只顯示一次）──
 _has_any_ai_key = any(_get_key(k) for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"))
 if not _has_any_ai_key and not st.session_state.get("setup_done"):
     st.session_state["setup_done"] = True   # 先標記，避免切頁面重複彈出
-    _show_onboarding()
+    if st.session_state.get("_user_has_pin") and not st.session_state.get("_pin_unlocked"):
+        # 使用者已設 PIN 保護金鑰，只是尚未本次解鎖 → 提示去解鎖，不要誤導以為沒儲存
+        _show_pin_reminder()
+    else:
+        # 真的沒有任何 AI 金鑰 → 引導去設定
+        _show_onboarding()
 
 # ════════════════════════════════════════════════════════
 #  頂部導覽列（取代 Sidebar）
