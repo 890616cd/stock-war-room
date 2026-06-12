@@ -2119,7 +2119,7 @@ def _mk_rpt_frame(icon: str, title: str, subtitle: str,
         f'{r.get("icon","🤖")} <strong style="color:{_txt};">{r.get("label","")}</strong>{_sep}'
         f'⏱ {r.get("elapsed_sec","?")} 秒{_sep}'
         f'<span title="輸入 {_in_tok:,} + 輸出 {_out_tok:,} tokens">🔢 {_total:,} tokens</span>{_sep}'
-        f'<strong style="color:{_cost_clr};">💵 {_cost_str}</strong>'
+        f'<strong style="color:{_cost_clr};">💵 {_cost_str} USD</strong>'
         f'</div>'
     )
 
