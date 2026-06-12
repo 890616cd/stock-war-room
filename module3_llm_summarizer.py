@@ -677,6 +677,45 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
 #  報告格式化
 # ══════════════════════════════════════════════
 
+def _inject_missing_links(text: str, url_map: dict) -> str:
+    """
+    掃描 LLM 輸出中的新聞標題行。
+    若模型（尤其 Gemini 2.5 Flash）未生成 [標題](URL) 格式的超連結，
+    則根據 url_map（{title_prefix → (url, source)}）自動補充正確 URL。
+    已有有效 URL 的行不受影響。
+    """
+    import re
+
+    def _lookup_url(title_text: str) -> str:
+        t = title_text.strip()
+        for key, (url, _src) in url_map.items():
+            k25 = key[:25].strip().lower()
+            t25 = t[:25].strip().lower()
+            if k25 and (k25 == t25 or t25.startswith(k25[:20]) or k25.startswith(t25[:20])):
+                return url
+        return ""
+
+    lines = text.split('\n')
+    out   = []
+    for line in lines:
+        s = line.strip()
+        # 已有合法 [text](https://...) → 保留原行
+        if re.search(r'\[[^\]]+\]\(https?://[^)]+\)', s):
+            out.append(line)
+            continue
+        # 匹配粗體新聞標題行：**[來源] 純文字標題**（沒有 URL）
+        m = re.match(r'^(\*\*\[([^\]]+)\] )(.+?)(\*\*)$', s)
+        if m:
+            prefix     = m.group(1)
+            title_text = m.group(3).strip()
+            suffix     = m.group(4)
+            url = _lookup_url(title_text)
+            if url:
+                line = f'{prefix}[{title_text}]({url}){suffix}'
+        out.append(line)
+    return '\n'.join(out)
+
+
 def format_final_report(
     llm_output:  str,
     assessment:  RiskAssessment,
@@ -712,6 +751,14 @@ def format_final_report(
         f"⚙ LLM（模組三）負責語意彙整　"
         f"⚙ 本報告不構成買賣建議，投資決策責任歸屬個人\n"
     )
+
+    # 後處理：補齊 LLM 未生成的超連結（Gemini 2.5 Flash 已知會遺漏 URL）
+    from module1_news_engine import get_news_url_map
+    url_map = get_news_url_map(market_data.news_by_category) if (
+        market_data and market_data.news_by_category
+    ) else {}
+    if url_map:
+        llm_output = _inject_missing_links(llm_output, url_map)
 
     return header + llm_output + footer
 
