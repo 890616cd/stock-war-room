@@ -652,10 +652,17 @@ def format_news_for_llm(news_by_category: dict[NewsCategory, list[EnrichedNewsIt
                 if item.related_tickers
                 else "  相關標的：待評估"
             )
-            url_str = f"  原文連結：{item.url}" if item.url else ""
+            # 預先組好 Markdown 超連結格式，模型直接複製即可，避免 Gemini 2.5 Flash
+            # 等模型無法可靠地從分開的標題/URL 欄位自行組合成 [title](url)
+            if item.url:
+                title_link = f"[{item.title}]({item.url})"
+                url_str    = f"  原文連結（請直接複製此格式）：{title_link}"
+            else:
+                title_link = item.title
+                url_str    = ""
             lines.append(
                 f"\n  {i}. [{item.source}]\n"
-                f"     標題：{item.title}\n"
+                f"     標題：{title_link}\n"
                 f"{ticker_str}\n"
                 f"{url_str}"
             )

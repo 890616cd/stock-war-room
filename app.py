@@ -1251,14 +1251,14 @@ def _mk_rpt_frame(icon: str, title: str, subtitle: str,
     report_text 先經 _md_to_html 轉換，避免 markdown 在 HTML div 內無法渲染的問題。
     這是讓邊框真正包住 Streamlit markdown 內容的唯一可靠方式。
     """
-    _sep = '<span style="color:#CBD5E1;margin:0 4px;">│</span>'
+    _sep = '<span style="color:var(--border);margin:0 4px;">│</span>'
     hd = (
         f'<div style="display:flex;align-items:center;gap:13px;padding:13px 16px;'
         f'background:linear-gradient(135deg,rgba(212,175,55,0.09),rgba(212,175,55,0.03));'
-        f'border:1px solid rgba(212,175,55,0.24);border-radius:12px;margin-bottom:14px;">'
+        f'border:1px solid rgba(212,175,55,0.28);border-radius:12px;margin-bottom:14px;">'
         f'<div style="font-size:22px;line-height:1;flex-shrink:0;">{icon}</div>'
-        f'<div><div style="font-size:15px;font-weight:700;color:#1E293B;margin-bottom:2px;">{title}</div>'
-        f'<div style="font-size:11px;color:#64748B;line-height:1.4;">{subtitle}</div></div>'
+        f'<div><div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;">{title}</div>'
+        f'<div style="font-size:11px;color:var(--muted);line-height:1.4;">{subtitle}</div></div>'
         f'</div>'
     )
     from module3_llm_summarizer import fmt_cost as _fmt_cost
@@ -1266,21 +1266,21 @@ def _mk_rpt_frame(icon: str, title: str, subtitle: str,
     _out_tok = r.get("output_tokens", 0)
     _total   = _in_tok + _out_tok
     _cost_str = _fmt_cost(r.get("model_id", ""), _in_tok, _out_tok)
-    _cost_clr = "#10B981" if _cost_str != "N/A" else "#64748B"
+    _cost_clr = "#10B981" if _cost_str != "N/A" else "var(--muted)"
     meta = (
         f'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px 10px;'
-        f'padding:7px 12px;background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.07);'
-        f'border-radius:9px;font-size:12px;color:#64748B;margin-bottom:12px;">'
-        f'{r.get("icon","🤖")} <strong style="color:#1E293B;">{r.get("label","")}</strong>{_sep}'
+        f'padding:7px 12px;background:rgba(128,128,128,0.05);border:1px solid rgba(128,128,128,0.10);'
+        f'border-radius:9px;font-size:12px;color:var(--muted);margin-bottom:12px;">'
+        f'{r.get("icon","🤖")} <strong style="color:var(--text);">{r.get("label","")}</strong>{_sep}'
         f'⏱ {r.get("elapsed_sec","?")} 秒{_sep}'
         f'<span title="輸入 {_in_tok:,} + 輸出 {_out_tok:,} tokens">🔢 {_total:,} tokens</span>{_sep}'
         f'<strong style="color:{_cost_clr};">💵 {_cost_str} USD</strong>'
         f'</div>'
     )
-    _content_html = _md_to_html(report_text, "#334155", "#64748B")
+    _content_html = _md_to_html(report_text, "var(--text)", "var(--muted)")
     return (
-        f'<div style="border:2px solid rgba(212,175,55,0.50);border-radius:20px;padding:24px;'
-        f'background:#FAFAFA;box-shadow:0 6px 24px rgba(0,0,0,0.09);margin-bottom:8px;">'
+        f'<div style="border:2px solid rgba(212,175,55,0.55);border-radius:20px;padding:24px;'
+        f'background:var(--card);box-shadow:var(--shadow);margin-bottom:8px;">'
         f'{hd}{meta}{_content_html}</div>'
     )
 
