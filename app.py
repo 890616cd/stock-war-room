@@ -2105,14 +2105,21 @@ def _mk_rpt_frame(icon: str, title: str, subtitle: str,
         f'</div>'
     )
 
+    from module3_llm_summarizer import fmt_cost as _fmt_cost
+    _in_tok  = r.get("input_tokens",  0)
+    _out_tok = r.get("output_tokens", 0)
+    _total   = _in_tok + _out_tok
+    _cost_str = _fmt_cost(r.get("model_id", ""), _in_tok, _out_tok)
+    _cost_clr = "#10B981" if _cost_str != "N/A" else _muted
+
     meta_html = (
         f'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px 10px;'
         f'padding:7px 12px;background:{_mbg};border:1px solid {_mbdr};'
         f'border-radius:9px;font-size:12px;color:{_muted};margin-bottom:12px;">'
         f'{r.get("icon","🤖")} <strong style="color:{_txt};">{r.get("label","")}</strong>{_sep}'
         f'⏱ {r.get("elapsed_sec","?")} 秒{_sep}'
-        f'📥 {r.get("input_tokens",0):,} tokens{_sep}'
-        f'📤 {r.get("output_tokens",0):,} tokens'
+        f'<span title="輸入 {_in_tok:,} + 輸出 {_out_tok:,} tokens">🔢 {_total:,} tokens</span>{_sep}'
+        f'<strong style="color:{_cost_clr};">💵 {_cost_str}</strong>'
         f'</div>'
     )
 
