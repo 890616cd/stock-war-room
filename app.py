@@ -2101,6 +2101,13 @@ fmp_key_sb     = _get_key("FMP_KEY")
 def _inline_md(text):
     """把行內 markdown 轉為 HTML（text 需先 html.escape）。"""
     import re
+    # 超連結 [text](url) — 優先處理，避免被後面的 * 規則干擾
+    text = re.sub(
+        r'\[([^\]]+)\]\((https?://[^)]+)\)',
+        r'<a href="\2" target="_blank" rel="noopener noreferrer" '
+        r'style="color:#D4AF37;text-decoration:underline;">\1</a>',
+        text,
+    )
     text = re.sub(r'\*\*\*(.+?)\*\*\*', r'<strong><em>\1</em></strong>', text)
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'\*([^*\n]+?)\*', r'<em>\1</em>', text)
