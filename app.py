@@ -255,9 +255,9 @@ div[data-testid="stAlert"][role="alert"] {{
 .war-loading-dots::after {{ content:''; animation:war-dots 1.4s steps(4,end) infinite; }}
 
 /* ═══ 自訂資料表格 ═══ */
-.data-tbl {{ width:100%; border-collapse:collapse; font-size:13px; }}
+.data-tbl {{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card); }}
 .data-tbl th {{ background:var(--card2); color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; padding:8px 12px; text-align:left; border-bottom:2px solid var(--border); }}
-.data-tbl td {{ padding:9px 12px; color:var(--text); border-bottom:1px solid var(--border); font-family:'Courier New',monospace; }}
+.data-tbl td {{ padding:9px 12px; color:var(--text); background:var(--card); border-bottom:1px solid var(--border); font-family:'Courier New',monospace; }}
 .data-tbl tr:last-child td {{ border-bottom:none; }}
 .data-tbl tr:hover td {{ background:var(--card2); transition:background .1s; }}
 .data-tbl .up {{ color:var(--up)!important; }} .data-tbl .dn {{ color:var(--down)!important; }} .data-tbl .mut {{ color:var(--muted)!important; }}
@@ -1828,10 +1828,16 @@ def render_stock_detail(symbol: str, name: str):
             # ── Step 2：組合 LLM Prompt ─────────────────
 
             # 把新聞列表格式化給 LLM
+            # 預先組好 [標題](URL) 格式，避免 Gemini 2.5 Flash 等模型遺漏超連結
             if fetched_news:
                 news_for_llm = "\n".join(
-                    f"  {i+1}. [{n['source']}] {n['title']}\n"
-                    f"     連結：{n['url']}\n"
+                    f"  {i+1}. [{n['source']}]\n"
+                    f"     標題：{('[' + n['title'] + '](' + n['url'] + ')') if n.get('url') else n['title']}\n"
+                    f"     原文連結（請直接複製此格式）：[{n['title']}]({n['url']})\n"
+                    f"     摘要：{n['summary'][:200]}"
+                    if n.get('url') else
+                    f"  {i+1}. [{n['source']}]\n"
+                    f"     標題：{n['title']}\n"
                     f"     摘要：{n['summary'][:200]}"
                     for i, n in enumerate(fetched_news)
                 )
@@ -1980,6 +1986,15 @@ def render_stock_detail(symbol: str, name: str):
                 pct = 55 + int(i / max(len(sel), 1) * 40)
                 _sprog.progress(pct, text=f"🤖 {lbl} 正在分析 {stock.symbol}...")
                 res = call_model(mid, sys_p_stock, user_prompt)
+                # 後處理：補齊 LLM 未生成的超連結（Gemini 2.5 Flash 已知會遺漏 URL）
+                if res.get("text") and fetched_news:
+                    from module3_llm_summarizer import _inject_missing_links as _iml
+                    _stk_url_map = {
+                        n["title"][:60].strip(): (n["url"], n["source"])
+                        for n in fetched_news if n.get("url")
+                    }
+                    if _stk_url_map:
+                        res["text"] = _iml(res["text"], _stk_url_map)
                 multi_res[mid] = res
             _sprog.progress(100, text="✅ 完成")
             _stk_loading.empty()
