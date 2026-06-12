@@ -607,16 +607,7 @@ def _call_gemini(model_id: str, system_prompt: str, user_prompt: str, max_tokens
         raise ImportError("請安裝 google-generativeai 套件：pip install google-generativeai")
     genai.configure(api_key=api_key)
     m = genai.GenerativeModel(model_name=model_id, system_instruction=system_prompt)
-    # Gemini 2.5 思考型模型：嘗試停用思考（節省 token 給輸出文字）
-    # 若 SDK 版本不支援 thinking_config 則回退到純 max_output_tokens 設定
-    gen_cfg = {"max_output_tokens": max_tokens}
-    try:
-        resp = m.generate_content(
-            user_prompt,
-            generation_config={**gen_cfg, "thinking_config": {"thinking_budget": 0}},
-        )
-    except Exception:
-        resp = m.generate_content(user_prompt, generation_config=gen_cfg)
+    resp = m.generate_content(user_prompt, generation_config={"max_output_tokens": max_tokens})
     try:
         it = resp.usage_metadata.prompt_token_count
         ot = resp.usage_metadata.candidates_token_count
