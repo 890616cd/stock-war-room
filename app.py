@@ -2244,7 +2244,7 @@ elif page == "🏠 戰情室主控台":
     # 分析啟動區
     _run_col, _hint_col = st.columns([3, 7])
     with _run_col:
-        run_disabled = not bool(api_key)
+        run_disabled = not bool(api_key or openai_key or google_key)
         if st.button("🚀 啟動完整分析", disabled=run_disabled,
                      use_container_width=True, type="primary", key="btn_run_analysis"):
             st.toast("⏳ 分析啟動中，請稍候 30–90 秒…", icon="🔄")
@@ -2269,7 +2269,7 @@ elif page == "🏠 戰情室主控台":
             st.toast("✅ 分析完成！", icon="🎯")
             st.rerun()
     with _hint_col:
-        if not api_key:
+        if not (api_key or openai_key or google_key):
             st.warning("請先至「📚 教學 & API設定」設定 AI 模型金鑰")
         else:
             last = st.session_state.get("last_run")
@@ -2911,7 +2911,7 @@ elif page == "📚 教學 & API設定":
                 "貼上 AI API Key（自動識別供應商）",
                 value="",
                 type="password",
-                placeholder="sk-ant-...  /  sk-proj-...  /  AIza...",
+                placeholder="sk-ant-...（Claude）  /  sk-proj-...（OpenAI）  /  任意格式（Gemini）",
                 key="smart_api_key_input",
             )
 
@@ -2998,7 +2998,7 @@ elif page == "📚 教學 & API設定":
                     st.session_state["selected_models"] = _new_sel_smart if _new_sel_smart else _cur_sel_smart
 
                 else:
-                    st.warning("⚠️ 無法識別供應商，請確認 Key 格式（支援：`sk-ant-`、`sk-proj-`、`sk-`、`AIza`）")
+                    st.warning("⚠️ 無法識別供應商，請確認 Key 格式（Claude：`sk-ant-`、OpenAI：`sk-` 或 `sk-proj-`、Google Gemini：任意格式均支援）")
 
             _col_save_ai, _ = st.columns([2, 8])
             if _col_save_ai.button("💾 驗證並儲存 AI 金鑰", type="primary", key="save_smart_key"):
